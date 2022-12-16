@@ -5,7 +5,6 @@ import asyncio
 import typing
 
 import aiohttp
-import aiohttp.client_exceptions
 from loguru import logger
 
 from vkquick.base.event import BaseEvent
@@ -55,6 +54,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         try:
             self.add_event_callback(events_queue.put)
             if not self._run:
+                self._run = True
                 asyncio.create_task(self.coroutine_run_polling())
             while True:
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
