@@ -81,7 +81,6 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         return func
 
     async def coroutine_run_polling(self) -> None:
-        self._run = True
         logger.info(
             "Run {polling_type} polling", polling_type=self.__class__.__name__
         )
