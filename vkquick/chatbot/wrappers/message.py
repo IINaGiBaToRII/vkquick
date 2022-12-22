@@ -26,17 +26,20 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 class TruncatedMessage(Wrapper):
     async def extend(self, api: API) -> None:
-        if self.id:
+        if self.id and self.fields["is_cropped"]:
             extended_message = await api.method(
                 "messages.get_by_id",
                 message_ids=self.id,
             )
-        else:
+        elif self.fields["is_cropped"]:
             extended_message = await api.method(
                 "messages.get_by_conversation_message_id",
                 conversation_message_ids=self.cmid,
                 peer_id=self.peer_id,
             )
+        else:
+            return None
+
         self._fields = extended_message["items"][0]
         self.fields["is_cropped"] = False
 
@@ -86,7 +89,7 @@ class Message(TruncatedMessage):
         return self.fields["text"]
 
     @property
-    def raw_attachments(self) -> str:
+    def raw_attachments(self) -> dict:
         return self.fields["raw_attachments"]
 
     @property
