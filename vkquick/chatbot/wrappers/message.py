@@ -84,13 +84,17 @@ class Message(TruncatedMessage):
     @property
     def text(self) -> str:
         return self.fields["text"]
-
+    
+    @property
+    def text(self) -> str:
+        return self.fields["raw_attachments"]
+    
     @property
     def random_id(self) -> int:
         return self.fields["random_id"]
 
     @property
-    def attachments(self) -> typing.Union[typing.List[dict], typing.Dict]:
+    def attachments(self) -> typing.List[dict]:
         return self.fields["attachments"]
 
     @property
@@ -130,10 +134,6 @@ class Message(TruncatedMessage):
         if "reply_message" in self.fields:
             return self.__class__(self.fields["reply_message"])
         return None
-
-    @functools.cached_property
-    def fwd(self) -> bool:
-        return self.fields["fwd"]
 
     @property
     def action(self) -> dict:
@@ -197,7 +197,7 @@ class Message(TruncatedMessage):
 
 
 @dataclasses.dataclass
-class  SentMessage:
+class SentMessage:
     api: API
     truncated_message: TruncatedMessage
 
