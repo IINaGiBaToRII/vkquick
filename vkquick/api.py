@@ -395,6 +395,42 @@ class API(SessionContainerMixin):
                 "URL-like string and Path-like object or string"
             )
 
+    async def upload_audio(
+        self,
+        content: typing.Union[str, bytes],
+        title: str = None,
+        artist: str = None,
+    ) -> None:
+        """
+        Сохраняет аудиозапись.
+        Arguments:
+            content: Содержимое файла аудиозаписи.
+            title: Название композиции.
+            artist: Автор композиции.
+        Returns:
+            None
+        """
+        data_storage = aiohttp.FormData()
+        data_storage.add_field(
+            f"file",
+            content,
+            content_type="multipart/form-data",
+        )
+
+        uploading_info = await self.method("audio.get_upload_server")
+
+        async with self.requests_session.post(
+            uploading_info["upload_url"], data=data_storage
+        ) as response:
+            response = await self.parse_json_body(response, content_type=None)
+
+        return await self.method(
+            "audio.save",
+            **response,
+            title=title,
+            artist=artist,
+        )
+
     async def upload_photos_to_message(
         self, *photos: PhotoEntityTyping, peer_id: int = 0
     ) -> typing.List[Photo]:
