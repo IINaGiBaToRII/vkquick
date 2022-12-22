@@ -84,11 +84,11 @@ class Message(TruncatedMessage):
     @property
     def text(self) -> str:
         return self.fields["text"]
-    
+
     @property
-    def text(self) -> str:
+    def raw_attachments(self) -> str:
         return self.fields["raw_attachments"]
-    
+
     @property
     def random_id(self) -> int:
         return self.fields["random_id"]
