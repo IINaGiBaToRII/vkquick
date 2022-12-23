@@ -30,6 +30,17 @@ class Attachment(Wrapper, APISerializableMixin):
         )
 
 
+class AudioMsg(Attachment):
+    _name = "audiomsg"
+
+    async def download(
+        self, *, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> bytes:
+        return await download_file(
+            self.fields["link_ogg"], session=session
+        )
+
+
 class Audio(Attachment):
     _name = "audio"
 
