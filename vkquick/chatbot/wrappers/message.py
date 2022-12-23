@@ -11,7 +11,7 @@ from vkquick.chatbot.ui_builders.carousel import Carousel
 from vkquick.chatbot.ui_builders.keyboard import Keyboard
 from vkquick.chatbot.utils import peer
 from vkquick.chatbot.utils import random_id as random_id_
-from vkquick.chatbot.wrappers.attachment import Audio, Document, Video, Photo
+from vkquick.chatbot.wrappers.attachment import Audio, AudioMsg, Document, Video, Photo
 from vkquick.json_parsers import json_parser_policy
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -172,50 +172,67 @@ class Message(TruncatedMessage):
             await self.extend(api)
         return self.attachments
 
-    async def fetch_audios(self, api: API) -> typing.List[Audio]:
+    async def fetch_audios(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Audio]:
         """
         Возвращает только аудиозаписи из всего,
         что есть во вложениях, оборачивая их в обертку
         """
+        attachments = attachments or await self.fetch_attachments(api)
         audios = [
             Audio(attachment["audio"])
-            for attachment in await self.fetch_attachments(api)
+            for attachment in attachments
             if attachment["type"] == "audio"
         ]
         return audios
 
-    async def fetch_videos(self, api: API) -> typing.List[Video]:
+    async def fetch_audio_message(self, api: API, attachments: typing.List[dict] = None) -> AudioMsg:
+        """
+        Возвращает только аудиосообщение из всего,
+        что есть во вложениях, оборачивая их в обертку
+        """
+        attachments = attachments or await self.fetch_attachments(api)
+        audiomsgs = [
+            AudioMsg(attachment["audio_message"])
+            for attachment in attachments
+            if attachment["type"] == "audio_message"
+        ]
+        return audiomsgs[0]
+
+    async def fetch_videos(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Video]:
         """
         Возвращает только видеозаписи из всего,
         что есть во вложениях, оборачивая их в обертку
         """
+        attachments = attachments or await self.fetch_attachments(api)
         videos = [
             Video(attachment["video"])
-            for attachment in await self.fetch_attachments(api)
+            for attachment in attachments
             if attachment["type"] == "video"
         ]
         return videos
 
-    async def fetch_photos(self, api: API) -> typing.List[Photo]:
+    async def fetch_photos(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Photo]:
         """
         Возвращает только фотографии из всего,
         что есть во вложениях, оборачивая их в обертку
         """
+        attachments = attachments or await self.fetch_attachments(api)
         photos = [
             Photo(attachment["photo"])
-            for attachment in await self.fetch_attachments(api)
+            for attachment in attachments
             if attachment["type"] == "photo"
         ]
         return photos
 
-    async def fetch_docs(self, api: API) -> typing.List[Document]:
+    async def fetch_docs(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Document]:
         """
         Возвращает только вложения с типом документ из всего,
         что есть во вложениях, оборачивая их в обертку
         """
+        attachments = attachments or await self.fetch_attachments(api)
         docs = [
             Document(attachment["doc"])
-            for attachment in await self.fetch_attachments(api)
+            for attachment in attachments
             if attachment["type"] == "doc"
         ]
         return docs
