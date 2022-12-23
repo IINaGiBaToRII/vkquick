@@ -11,7 +11,7 @@ from vkquick.chatbot.ui_builders.carousel import Carousel
 from vkquick.chatbot.ui_builders.keyboard import Keyboard
 from vkquick.chatbot.utils import peer
 from vkquick.chatbot.utils import random_id as random_id_
-from vkquick.chatbot.wrappers.attachment import Document, Photo
+from vkquick.chatbot.wrappers.attachment import Document, Photo, Video
 from vkquick.json_parsers import json_parser_policy
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -171,6 +171,18 @@ class Message(TruncatedMessage):
         if self.is_cropped:
             await self.extend(api)
         return self.attachments
+
+    async def fetch_videos(self, api: API) -> typing.List[Video]:
+        """
+        Возвращает только видеозаписи из всего,
+        что есть во вложениях, оборачивая их в обертку
+        """
+        videos = [
+            Video(attachment["video"])
+            for attachment in await self.fetch_attachments(api)
+            if attachment["type"] == "video"
+        ]
+        return videos
 
     async def fetch_photos(self, api: API) -> typing.List[Photo]:
         """
