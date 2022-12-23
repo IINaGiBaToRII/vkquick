@@ -20,6 +20,7 @@ from loguru import logger
 from vkquick import error_codes
 from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
+from vkquick.captcha.captcha_handler import captcha_handler
 from vkquick.chatbot.utils import download_file
 from vkquick.chatbot.wrappers.attachment import Document, Photo
 from vkquick.chatbot.wrappers.page import Group, Page, User
@@ -224,11 +225,21 @@ class API(SessionContainerMixin):
         """
         use_cache = self._use_cache
         self._use_cache = False
-        return await self._make_api_request(
-            method_name=method_name,
-            request_params=request_params,
-            use_cache=use_cache,
-        )
+
+        captcha_sid = None
+        captcha_key = None
+        while True:
+
+            try:
+                request_params.update({"captcha_sid": captcha_sid, "captcha_key": captcha_key})
+                return await self._make_api_request(
+                    method_name=method_name,
+                    request_params=request_params,
+                    use_cache=use_cache,
+                )
+            except APIError[14] as err:
+                captcha_sid = err.extra_fields["captcha_sid"]
+                captcha_key = await captcha_handler(err.extra_fields["captcha_img"])
 
     async def execute(
         self, *code: typing.Union[str, CallMethod]
