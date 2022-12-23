@@ -339,41 +339,13 @@ class API(SessionContainerMixin):
         else:
             current_proxy = None
 
-        while True:
-            try:
-                async with self.requests_session.post(
-                    self._requests_url + method_name, data=params, proxy=current_proxy
-                ) as response:
-                    response = await self.parse_json_body(response)
-                    if "error" in response and response["error"]["error_code"] == 10:
-                        logger.opt(colors=True).warning(
-                            **format_mapping(
-                                "VK Internal server error occured while calling <m>{method_name}</m>({params}): {error_message}. Retrying in 10 seconds...",
-                                "<c>{key}</c>=<y>{value!r}</y>",
-                                params,
-                            ),
-                            method_name=method_name,
-                            error_message=response["error"]["error_msg"]
-                        )
-                        await asyncio.sleep(10)
-                    else:
-                        return response
-            except aiohttp.ClientResponseError as error:
-                if error.status >= 500:
-                    logger.opt(colors=True).warning(
-                        **format_mapping(
-                            "Server error occured while calling <m>{method_name}</m>({params}): {error_message}. Retrying in 10 seconds...",
-                            "<c>{key}</c>=<y>{value!r}</y>",
-                            params,
-                        ),
-                        method_name=method_name,
-                        error_message=error.message
-                    )
-                    await asyncio.sleep(10)
-                else:
-                    raise error
-            except aiohttp.ServerDisconnectedError:
-                await self.refresh_session()
+        return await post(
+            self,
+            self._requests_url + method_name,
+            data=params,
+            parse_params=None,
+            proxy=current_proxy
+        )
 
     async def _fetch_photo_entity(self, photo: PhotoEntityTyping) -> bytes:
         """
@@ -400,7 +372,7 @@ class API(SessionContainerMixin):
         content: typing.Union[str, bytes],
         title: str = None,
         artist: str = None,
-    ) -> None:
+    ):
         """
         Сохраняет аудиозапись.
         Arguments:
@@ -419,11 +391,12 @@ class API(SessionContainerMixin):
 
         uploading_info = await self.method("audio.get_upload_server")
 
-        async with self.requests_session.post(
-            uploading_info["upload_url"], data=data_storage
-        ) as response:
-            response = await self.parse_json_body(response, content_type=None)
-
+        response = await post(
+            self,
+            uploading_info["upload_url"],
+            data=data_storage,
+            parse_params=dict(content_type=None)
+        )
         return await self.method(
             "audio.save",
             **response,
@@ -473,13 +446,12 @@ class API(SessionContainerMixin):
             uploading_info = await self.method(
                 "photos.get_messages_upload_server", peer_id=peer_id
             )
-            async with self.requests_session.post(
-                uploading_info["upload_url"], data=data_storage
-            ) as response:
-                response = await self.parse_json_body(
-                    response, content_type=None
-                )
-
+            response = await post(
+                self,
+                uploading_info["upload_url"],
+                data=data_storage,
+                parse_params=dict(content_type=None)
+            )
             try:
                 uploaded_photos = await self.method(
                     "photos.save_messages_photo", **response
@@ -539,10 +511,7 @@ class API(SessionContainerMixin):
             peer_id=peer_id,
             type=type
         )
-        async with self.requests_session.post(
-            uploading_info["upload_url"], data=data_storage
-        ) as response:
-            response = await self.parse_json_body(response, content_type=None)
+        response = await post(self, uploading_info["upload_url"], data=data_storage)
 
         document = await self.method(
             "docs.save",
@@ -640,6 +609,28 @@ def _convert_method_name(name: str, /) -> str:
 
     """
     return re.sub(r"_(?P<let>[a-z])", _upper_zero_group, name)
+
+
+async def post(self: API, url: str, *, data: typing.Any = None, parse_params: dict = None, **kwargs: typing.Any):
+    while True:
+        try:
+            async with self.requests_session.post(
+                url, data=data, **kwargs
+            ) as response:
+                parse_params = {} if parse_params is None else parse_params
+                response = await self.parse_json_body(response, **parse_params)
+                return response
+        except aiohttp.ClientResponseError as error:
+            if error.status >= 500:
+                logger.opt(colors=True).warning(
+                    "Server error occured while calling VK method: {error_message}. Retrying in 10 seconds...",
+                    error_message=error.message
+                )
+                await asyncio.sleep(10)
+            else:
+                raise error
+        except aiohttp.ServerDisconnectedError:
+            await self.refresh_session()
 
 
 class CallMethod:
