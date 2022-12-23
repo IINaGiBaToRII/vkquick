@@ -212,19 +212,19 @@ class NewMessage(
             except StopStateHandling as err:
                 return err.payload
 
-    async def fetch_docs(self) -> typing.List[Document]:
-        return await self.msg.fetch_docs(self.api)
+    async def fetch_docs(self, attachments: typing.List[dict] = None) -> typing.List[Document]:
+        return await self.msg.fetch_docs(self.api, attachments)
 
-    async def fetch_audio_message(self, attachments: dict = None) -> AudioMsg:
+    async def fetch_audio_message(self, attachments: typing.List[dict] = None) -> AudioMsg:
         return await self.msg.fetch_audio_message(self.api, attachments)
 
-    async def fetch_audios(self, attachments: dict = None) -> typing.List[Audio]:
+    async def fetch_audios(self, attachments: typing.List[dict] = None) -> typing.List[Audio]:
         return await self.msg.fetch_audios(self.api, attachments)
 
-    async def fetch_photos(self, attachments: dict = None) -> typing.List[Photo]:
+    async def fetch_photos(self, attachments: typing.List[dict] = None) -> typing.List[Photo]:
         return await self.msg.fetch_photos(self.api, attachments)
 
-    async def fetch_videos(self, attachments: dict = None) -> typing.List[Video]:
+    async def fetch_videos(self, attachments: typing.List[dict] = None) -> typing.List[Video]:
         return await self.msg.fetch_videos(self.api, attachments)
 
     async def download_photos(self) -> typing.List[bytes]:
