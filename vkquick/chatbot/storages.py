@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from vkquick.base.event_factories import BaseEventFactory
     from vkquick.chatbot.application import App, Bot
     from vkquick.chatbot.package import Package
-    from vkquick.chatbot.wrappers.attachment import Audio, Document, Photo, Video
+    from vkquick.chatbot.wrappers.attachment import Audio, AudioMsg, Document, Photo, Video
 
     SenderTypevar = typing.TypeVar("SenderTypevar", bound=Page)
 
@@ -215,14 +215,17 @@ class NewMessage(
     async def fetch_docs(self) -> typing.List[Document]:
         return await self.msg.fetch_docs(self.api)
 
-    async def fetch_audios(self) -> typing.List[Audio]:
-        return await self.msg.fetch_audios(self.api)
+    async def fetch_audio_message(self, attachments: dict = None) -> AudioMsg:
+        return await self.msg.fetch_audio_message(self.api, attachments)
 
-    async def fetch_photos(self) -> typing.List[Photo]:
-        return await self.msg.fetch_photos(self.api)
+    async def fetch_audios(self, attachments: dict = None) -> typing.List[Audio]:
+        return await self.msg.fetch_audios(self.api, attachments)
 
-    async def fetch_videos(self) -> typing.List[Video]:
-        return await self.msg.fetch_videos(self.api)
+    async def fetch_photos(self, attachments: dict = None) -> typing.List[Photo]:
+        return await self.msg.fetch_photos(self.api, attachments)
+
+    async def fetch_videos(self, attachments: dict = None) -> typing.List[Video]:
+        return await self.msg.fetch_videos(self.api, attachments)
 
     async def download_photos(self) -> typing.List[bytes]:
         photos = await self.fetch_photos()
