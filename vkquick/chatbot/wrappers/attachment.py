@@ -30,6 +30,17 @@ class Attachment(Wrapper, APISerializableMixin):
         )
 
 
+class Audio(Attachment):
+    _name = "audio"
+
+    async def download(
+        self, *, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> bytes:
+        return await download_file(
+            self.fields["url"], session=session
+        )
+
+
 class Video(Attachment):
     _name = "video"
 
