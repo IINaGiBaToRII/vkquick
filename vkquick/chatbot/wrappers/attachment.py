@@ -30,6 +30,41 @@ class Attachment(Wrapper, APISerializableMixin):
         )
 
 
+class Video(Attachment):
+    _name = "video"
+
+    async def download_lowest_quality(
+        self, *, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> bytes:
+        url = list(self.fields["files"].items())[0]
+        return await download_file(
+            url[1], session=session
+        )
+
+    async def download_with_quality(
+        self,
+        quality: str,
+        *,
+        session: typing.Optional[aiohttp.ClientSession] = None,
+    ) -> bytes:
+        for video_quality, url in self.fields["files"].items():
+            if video_quality == quality:
+                return await download_file(url, session=session)
+            raise ValueError(f"There isn’t a quality `{quality}` in available qualities")
+
+    async def download_highest_quality(
+        self, *, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> bytes:
+        highest_quality_url = ""
+        for video_quality, url in self.fields["files"].items():
+            if "mp4" in url:
+                highest_quality_url = url
+            elif highest_quality_url:
+                return await download_file(
+                    self.fields["sizes"][-1]["url"], session=session
+                )
+
+
 class Photo(Attachment):
     _name = "photo"
 
