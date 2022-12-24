@@ -13,7 +13,8 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
 class OnlyMe(BaseFilter):
     async def make_decision(self, ctx: NewMessage, **kwargs):
-        if not ctx.msg.out:
+        owner_id = (await ctx.api.define_token_owner())[1].id
+        if not (ctx.msg.out or owner_id == ctx.msg.peer_id):
             raise StopCurrentHandling()
 
 
