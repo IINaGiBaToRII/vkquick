@@ -77,7 +77,6 @@ async def dump_user_lp_fields(
         keyboard=event.content[6].get("keyboard"),
         payload=event.content[6].get("payload"),
         random_id=event.content[8],
-        raw_attachments=event.content[7],
         conversation_message_id=event.content[9]
         if len(event.content) == 10
         else None,
