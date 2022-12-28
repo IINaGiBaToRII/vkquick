@@ -318,8 +318,11 @@ class API(SessionContainerMixin):
         if "error" in response:
             error = response["error"].copy()
             exception_class = APIError[error["error_code"]][0]
+            status_code = error.pop("error_code")
+            if status_code == 5:
+                await self.close_session()
             raise exception_class(
-                status_code=error.pop("error_code"),  # noqa
+                status_code=status_code,  # noqa
                 description=error.pop("error_msg"),  # noqa
                 request_params=error.pop("request_params"),  # noqa
                 extra_fields=error,  # noqa
