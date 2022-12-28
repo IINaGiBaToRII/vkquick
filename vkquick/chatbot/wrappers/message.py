@@ -11,7 +11,7 @@ from vkquick.chatbot.ui_builders.carousel import Carousel
 from vkquick.chatbot.ui_builders.keyboard import Keyboard
 from vkquick.chatbot.utils import peer
 from vkquick.chatbot.utils import random_id as random_id_
-from vkquick.chatbot.wrappers.attachment import Audio, AudioMsg, Document, Video, Photo
+from vkquick.chatbot.wrappers.attachment import Audio, AudioMessage, Document, Video, Photo
 from vkquick.json_parsers import json_parser_policy
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -181,14 +181,14 @@ class Message(TruncatedMessage):
         ]
         return audios
 
-    async def fetch_audio_message(self, api: API, attachments: typing.List[dict] = None) -> AudioMsg:
+    async def fetch_audio_message(self, api: API, attachments: typing.List[dict] = None) -> AudioMessage:
         """
         Возвращает только аудиосообщение из всего,
         что есть во вложениях, оборачивая их в обертку
         """
         attachments = attachments or await self.fetch_attachments(api)
         audiomsgs = [
-            AudioMsg(attachment["audio_message"])
+            AudioMessage(attachment["audio_message"])
             for attachment in attachments
             if attachment["type"] == "audio_message"
         ]
@@ -323,8 +323,7 @@ class SentMessage:
             )
 
         routing["peer_id"] = self.truncated_message.peer_id
-        if (await self.api.define_token_owner())[1].id == routing["peer_id"]:
-            delete_for_all = 0
+
         await self.api.method(
             "messages.delete",
             spam=spam,
