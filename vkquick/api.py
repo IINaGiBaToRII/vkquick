@@ -553,7 +553,7 @@ class API(SessionContainerMixin):
             filename=filename,
         )
 
-        uploading_info = await api.method(
+        uploading_info = await self.method(
             "video.getVideoMessageUploadInfo",
             shape_id=shape_id
         )
