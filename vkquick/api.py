@@ -22,7 +22,7 @@ from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
 from vkquick.captcha.captcha_handler import captcha_handler
 from vkquick.chatbot.utils import download_file
-from vkquick.chatbot.wrappers.attachment import Document, Photo
+from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage
 from vkquick.chatbot.wrappers.page import Group, Page, User
 from vkquick.exceptions import APIError
 from vkquick.json_parsers import json_parser_policy
