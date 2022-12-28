@@ -83,7 +83,7 @@ class Video(Attachment):
                 highest_quality_url = url
             elif highest_quality_url:
                 return await download_file(
-                    self.fields["sizes"][-1]["url"], session=session
+                    highest_quality_url, session=session
                 )
 
 
