@@ -537,6 +537,35 @@ class API(SessionContainerMixin):
         return Document(document[type])
 
 
+    async def upload_video_message(
+        self,
+        content: typing.Union[str, bytes],
+        filename: str,
+        shape_id: typing.Literal[1, 2, 3, 4, 5] = 1
+    ):
+        if "." not in filename:
+            filename = f"{filename}.mp4"
+        data_storage = aiohttp.FormData()
+        data_storage.add_field(
+            f"file",
+            content,
+            content_type="multipart/form-data",
+            filename=filename,
+        )
+
+        uploading_info = await api.method(
+            "video.getVideoMessageUploadInfo",
+            shape_id=shape_id
+        )
+        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        fields = {
+            "attachment_type": "video_message",
+            "owner_id": response.pop("owner_id"),
+            "id": response.pop("video_id"),
+            "access_key": response.pop("video_hash")
+        }
+        return VideoMessage(fields)
+
 def _convert_param_value(value, /):
     """
     Конвертирует параметр API запроса в соответствии
