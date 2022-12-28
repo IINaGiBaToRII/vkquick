@@ -323,7 +323,8 @@ class SentMessage:
             )
 
         routing["peer_id"] = self.truncated_message.peer_id
-
+        if (await self.api.define_token_owner())[1].id == routing["peer_id"]:
+            delete_for_all = 0
         await self.api.method(
             "messages.delete",
             spam=spam,
