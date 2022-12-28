@@ -181,7 +181,7 @@ class Message(TruncatedMessage):
         ]
         return audios
 
-    async def fetch_audio_message(self, api: API, attachments: typing.List[dict] = None) -> AudioMessage:
+    async def fetch_audio_message(self, api: API, attachments: typing.List[dict] = None) -> typing.List[AudioMessage]:
         """
         Возвращает только аудиосообщение из всего,
         что есть во вложениях, оборачивая их в обертку
@@ -193,7 +193,6 @@ class Message(TruncatedMessage):
             if attachment["type"] == "audio_message"
         ]
         return audiomsgs[0]
-
     async def fetch_videos(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Video]:
         """
         Возвращает только видеозаписи из всего,
