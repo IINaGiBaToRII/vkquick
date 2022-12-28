@@ -135,9 +135,8 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
             )
             for token in tokens
         ]
-        bots = None
+        bots = await asyncio.gather(*bots_init_coroutines)
         try:
-            bots = await asyncio.gather(*bots_init_coroutines)
             await self._call_startup(*bots)
             run_coroutines = [bot.run_polling() for bot in bots]
             await asyncio.gather(*run_coroutines)
