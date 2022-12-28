@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from vkquick.base.event_factories import BaseEventFactory
     from vkquick.chatbot.application import App, Bot
     from vkquick.chatbot.package import Package
-    from vkquick.chatbot.wrappers.attachment import Audio, AudioMsg, Document, Photo, Video
+    from vkquick.chatbot.wrappers.attachment import Audio, AudioMessage, Document, Photo, Video
 
     SenderTypevar = typing.TypeVar("SenderTypevar", bound=Page)
 
@@ -214,7 +214,7 @@ class NewMessage(
     async def fetch_docs(self, attachments: typing.List[dict] = None) -> typing.List[Document]:
         return await self.msg.fetch_docs(self.api, attachments)
 
-    async def fetch_audio_message(self, attachments: typing.List[dict] = None) -> AudioMsg:
+    async def fetch_audio_message(self, attachments: typing.List[dict] = None) -> AudioMessage:
         return await self.msg.fetch_audio_message(self.api, attachments)
 
     async def fetch_audios(self, attachments: typing.List[dict] = None) -> typing.List[Audio]:
