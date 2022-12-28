@@ -79,7 +79,7 @@ class Video(Attachment):
     ) -> bytes:
         highest_quality_url = ""
         for video_quality, url in self.fields["files"].items():
-            if "mp4" in url:
+            if "mp4" in video_quality:
                 highest_quality_url = url
             elif highest_quality_url:
                 return await download_file(
