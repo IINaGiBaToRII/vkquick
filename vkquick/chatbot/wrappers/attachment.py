@@ -30,7 +30,7 @@ class Attachment(Wrapper, APISerializableMixin):
         )
 
 
-class AudioMsg(Attachment):
+class AudioMessage(Attachment):
     _name = "audiomsg"
 
     async def download(
@@ -118,3 +118,8 @@ class Photo(Attachment):
 
 class Document(Attachment):
     _name = "doc"
+
+
+class VideoMessage(Attachment):
+    _name = "video_message"
+
