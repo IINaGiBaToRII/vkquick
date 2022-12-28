@@ -20,8 +20,9 @@ from loguru import logger
 from vkquick import error_codes
 from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
+from vkquick.captcha.captcha_handler import captcha_handler
 from vkquick.chatbot.utils import download_file
-from vkquick.chatbot.wrappers.attachment import Document, Photo
+from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage
 from vkquick.chatbot.wrappers.page import Group, Page, User
 from vkquick.exceptions import APIError
 from vkquick.json_parsers import json_parser_policy
@@ -224,11 +225,21 @@ class API(SessionContainerMixin):
         """
         use_cache = self._use_cache
         self._use_cache = False
-        return await self._make_api_request(
-            method_name=method_name,
-            request_params=request_params,
-            use_cache=use_cache,
-        )
+
+        captcha_sid = None
+        captcha_key = None
+        while True:
+
+            try:
+                request_params.update({"captcha_sid": captcha_sid, "captcha_key": captcha_key})
+                return await self._make_api_request(
+                    method_name=method_name,
+                    request_params=request_params,
+                    use_cache=use_cache,
+                )
+            except APIError[14] as err:
+                captcha_sid = err.extra_fields["captcha_sid"]
+                captcha_key = await captcha_handler(err.extra_fields["captcha_img"])
 
     async def execute(
         self, *code: typing.Union[str, CallMethod]
@@ -287,10 +298,6 @@ class API(SessionContainerMixin):
             if cache_hash in self._cache_table:
                 return self._cache_table[cache_hash]
 
-        # Задержка между запросами необходима по правилам API
-        api_request_delay = self._get_waiting_time()
-        await asyncio.sleep(api_request_delay)
-
         # Отправка запроса с последующей проверкой ответа
         response = await self._send_api_request(
             real_method_name, extra_request_params
@@ -311,8 +318,11 @@ class API(SessionContainerMixin):
         if "error" in response:
             error = response["error"].copy()
             exception_class = APIError[error["error_code"]][0]
+            status_code = error.pop("error_code")
+            if status_code == 5:
+                await self.close_session()
             raise exception_class(
-                status_code=error.pop("error_code"),  # noqa
+                status_code=status_code,  # noqa
                 description=error.pop("error_msg"),  # noqa
                 request_params=error.pop("request_params"),  # noqa
                 extra_fields=error,  # noqa
@@ -343,41 +353,13 @@ class API(SessionContainerMixin):
         else:
             current_proxy = None
 
-        while True:
-            try:
-                async with self.requests_session.post(
-                    self._requests_url + method_name, data=params, proxy=current_proxy
-                ) as response:
-                    response = await self.parse_json_body(response)
-                    if "error" in response and response["error"]["error_code"] == 10:
-                        logger.opt(colors=True).warning(
-                            **format_mapping(
-                                "VK Internal server error occured while calling <m>{method_name}</m>({params}): {error_message}. Retrying in 10 seconds...",
-                                "<c>{key}</c>=<y>{value!r}</y>",
-                                params,
-                            ),
-                            method_name=method_name,
-                            error_message=response["error"]["error_msg"]
-                        )
-                        await asyncio.sleep(10)
-                    else:
-                        return response
-            except aiohttp.ClientResponseError as error:
-                if error.status >= 500:
-                    logger.opt(colors=True).warning(
-                        **format_mapping(
-                            "Server error occured while calling <m>{method_name}</m>({params}): {error_message}. Retrying in 10 seconds...",
-                            "<c>{key}</c>=<y>{value!r}</y>",
-                            params,
-                        ),
-                        method_name=method_name,
-                        error_message=error.message
-                    )
-                    await asyncio.sleep(10)
-                else:
-                    raise error
-            except aiohttp.ServerDisconnectedError:
-                await self.refresh_session()
+        return await post(
+            self,
+            self._requests_url + method_name,
+            data=params,
+            parse_params=None,
+            proxy=current_proxy
+        )
 
     async def _fetch_photo_entity(self, photo: PhotoEntityTyping) -> bytes:
         """
@@ -398,6 +380,43 @@ class API(SessionContainerMixin):
                 "Accept only bytes, BytesIO, "
                 "URL-like string and Path-like object or string"
             )
+
+    async def upload_audio(
+        self,
+        content: typing.Union[str, bytes],
+        title: str = None,
+        artist: str = None,
+    ):
+        """
+        Сохраняет аудиозапись.
+        Arguments:
+            content: Содержимое файла аудиозаписи.
+            title: Название композиции.
+            artist: Автор композиции.
+        Returns:
+            None
+        """
+        data_storage = aiohttp.FormData()
+        data_storage.add_field(
+            f"file",
+            content,
+            content_type="multipart/form-data",
+        )
+
+        uploading_info = await self.method("audio.get_upload_server")
+
+        response = await post(
+            self,
+            uploading_info["upload_url"],
+            data=data_storage,
+            parse_params=dict(content_type=None)
+        )
+        return await self.method(
+            "audio.save",
+            **response,
+            title=title,
+            artist=artist,
+        )
 
     async def upload_photos_to_message(
         self, *photos: PhotoEntityTyping, peer_id: int = 0
@@ -441,13 +460,12 @@ class API(SessionContainerMixin):
             uploading_info = await self.method(
                 "photos.get_messages_upload_server", peer_id=peer_id
             )
-            async with self.requests_session.post(
-                uploading_info["upload_url"], data=data_storage
-            ) as response:
-                response = await self.parse_json_body(
-                    response, content_type=None
-                )
-
+            response = await post(
+                self,
+                uploading_info["upload_url"],
+                data=data_storage,
+                parse_params=dict(content_type=None)
+            )
             try:
                 uploaded_photos = await self.method(
                     "photos.save_messages_photo", **response
@@ -507,10 +525,7 @@ class API(SessionContainerMixin):
             peer_id=peer_id,
             type=type
         )
-        async with self.requests_session.post(
-            uploading_info["upload_url"], data=data_storage
-        ) as response:
-            response = await self.parse_json_body(response, content_type=None)
+        response = await post(self, uploading_info["upload_url"], data=data_storage)
 
         document = await self.method(
             "docs.save",
@@ -521,25 +536,35 @@ class API(SessionContainerMixin):
         )
         return Document(document[type])
 
-    def _get_waiting_time(self) -> float:
-        """
-        Рассчитывает обязательное время задержки после
-        последнего API запроса. Для групп -- 0.05s,
-        для пользователей/сервисных токенов -- 0.333s
 
-        Returns:
-            Время, необходимое для ожидания.
-        """
-        now = time.time()
-        diff = now - self._last_request_timestamp
-        if diff < self._requests_delay:
-            wait_time = self._requests_delay - diff
-            self._last_request_timestamp += wait_time
-            return wait_time
-        else:
-            self._last_request_timestamp = now
-            return 0.0
+    async def upload_video_message(
+        self,
+        content: typing.Union[str, bytes],
+        filename: str,
+        shape_id: typing.Literal[1, 2, 3, 4, 5] = 1
+    ):
+        if "." not in filename:
+            filename = f"{filename}.mp4"
+        data_storage = aiohttp.FormData()
+        data_storage.add_field(
+            f"file",
+            content,
+            content_type="multipart/form-data",
+            filename=filename,
+        )
 
+        uploading_info = await api.method(
+            "video.getVideoMessageUploadInfo",
+            shape_id=shape_id
+        )
+        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        fields = {
+            "attachment_type": "video_message",
+            "owner_id": response.pop("owner_id"),
+            "id": response.pop("video_id"),
+            "access_key": response.pop("video_hash")
+        }
+        return VideoMessage(fields)
 
 def _convert_param_value(value, /):
     """
@@ -627,6 +652,28 @@ def _convert_method_name(name: str, /) -> str:
 
     """
     return re.sub(r"_(?P<let>[a-z])", _upper_zero_group, name)
+
+
+async def post(self: API, url: str, *, data: typing.Any = None, parse_params: dict = None, **kwargs: typing.Any):
+    while True:
+        try:
+            async with self.requests_session.post(
+                url, data=data, **kwargs
+            ) as response:
+                parse_params = {} if parse_params is None else parse_params
+                response = await self.parse_json_body(response, **parse_params)
+                return response
+        except aiohttp.ClientResponseError as error:
+            if error.status >= 500:
+                logger.opt(colors=True).warning(
+                    "Server error occured while calling VK method: {error_message}. Retrying in 10 seconds...",
+                    error_message=error.message
+                )
+                await asyncio.sleep(10)
+            else:
+                raise error
+        except aiohttp.ServerDisconnectedError:
+            await self.refresh_session()
 
 
 class CallMethod:
