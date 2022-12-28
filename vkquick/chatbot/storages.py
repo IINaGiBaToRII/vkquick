@@ -214,7 +214,7 @@ class NewMessage(
     async def fetch_docs(self, attachments: typing.List[dict] = None) -> typing.List[Document]:
         return await self.msg.fetch_docs(self.api, attachments)
 
-    async def fetch_audio_message(self, attachments: typing.List[dict] = None) -> AudioMessage:
+    async def fetch_audio_message(self, attachments: typing.List[dict] = None) -> typing.List[AudioMessage]:
         return await self.msg.fetch_audio_message(self.api, attachments)
 
     async def fetch_audios(self, attachments: typing.List[dict] = None) -> typing.List[Audio]:
