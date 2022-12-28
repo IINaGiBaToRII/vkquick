@@ -540,19 +540,14 @@ class API(SessionContainerMixin):
     async def upload_video_message(
         self,
         content: typing.Union[str, bytes],
-        filename: str,
         shape_id: typing.Literal[1, 2, 3, 4, 5] = 1
-    ):
-        if "." not in filename:
-            filename = f"{filename}.mp4"
+    ) -> VideoMessage:
         data_storage = aiohttp.FormData()
         data_storage.add_field(
             f"file",
             content,
             content_type="multipart/form-data",
-            filename=filename,
         )
-
         uploading_info = await self.method(
             "video.getVideoMessageUploadInfo",
             shape_id=shape_id
