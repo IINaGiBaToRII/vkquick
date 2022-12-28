@@ -192,7 +192,8 @@ class Message(TruncatedMessage):
             for attachment in attachments
             if attachment["type"] == "audio_message"
         ]
-        return audiomsgs[0]
+        return audiomsgs
+    
     async def fetch_videos(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Video]:
         """
         Возвращает только видеозаписи из всего,
