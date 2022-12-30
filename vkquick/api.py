@@ -561,6 +561,11 @@ class API(SessionContainerMixin):
         }
         return VideoMessage(fields)
 
+    @property
+    def token(self):
+        return self._token
+
+
 def _convert_param_value(value, /):
     """
     Конвертирует параметр API запроса в соответствии
