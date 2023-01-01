@@ -484,6 +484,72 @@ class API(SessionContainerMixin):
                 )
         return result_photos
 
+    async def upload_photos_to_wall(
+        self, *photos: PhotoEntityTyping, group_id: int = 0
+    ) -> typing.List[Photo]:
+        """
+        Загружает фотографию на стену
+
+        Arguments:
+            photos: Фотографии в виде ссылки/пути до файла/сырых байтов/
+                IO-хранилища/Path-like объекта
+            peer_id: ID группы, куда загружаются фотографии. Если
+                не передавать, то фотографии загрузятся в скрытый альбом. Рекомендуется
+                исключительно для тестирования, т.к. такой альбом имеет лимиты
+        Returns:
+            Список врапперов загруженных фотографий, который можно напрямую
+            передать в поле `attachment` при отправке сообщения
+        """
+        photo_bytes_coroutines = [
+            self._fetch_photo_entity(photo) for photo in photos
+        ]
+        photo_bytes = await asyncio.gather(*photo_bytes_coroutines)
+        result_photos = []
+        # TODO: concurrency between uploading
+        for loading_step in itertools.count(0):
+            data_storage = aiohttp.FormData()
+
+            # За один раз можно загрузить только 5 фотографий,
+            # поэтому необходимо разбить фотографии на части
+            start_step = loading_step * 5
+            end_step = start_step + 5
+            if len(photo_bytes) <= start_step and result_photos:
+                break
+
+            for ind, photo in enumerate(photo_bytes[start_step:end_step]):
+                data_storage.add_field(
+                    f"file{ind}",
+                    photo,
+                    content_type="multipart/form-data",
+                    filename=f"a.png",  # Расширение не играет роли
+                )
+            uploading_info = await self.method(
+                "photos.get_wall_upload_server", group_id=group_id
+            )
+            response = await post(
+                self,
+                uploading_info["upload_url"],
+                data=data_storage,
+                parse_params=dict(content_type=None)
+            )
+            try:
+                uploaded_photos = await self.method(
+                    "photos.save_wall_photo", **response
+                )
+            except APIError[error_codes.CODE_1_UNKNOWN]:
+                traceback.print_exc()
+                print(
+                    "(Вк пока что не позволяет загружать "
+                    "фотографии в беседу сообщества, "
+                    "что и является причиной ошибки)"
+                )
+            else:
+                result_photos.extend(
+                    Photo(uploaded_photo)
+                    for uploaded_photo in uploaded_photos
+                )
+        return result_photos
+
     async def upload_doc_to_message(
         self,
         content: typing.Union[str, bytes],
