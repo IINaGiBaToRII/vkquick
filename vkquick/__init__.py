@@ -63,7 +63,7 @@ from .chatbot.utils import (
     peer,
     random_id,
 )
-from .chatbot.wrappers.attachment import Audio, AudioMessage, Document, Photo, Video
+from .chatbot.wrappers.attachment import Audio, AudioMessage, Document, Photo, Video, VideoMessage, Attachment
 from .chatbot.wrappers.message import Message, SentMessage, TruncatedMessage
 from .chatbot.wrappers.page import Group, IDType, Page, User
 from .error_codes import *
