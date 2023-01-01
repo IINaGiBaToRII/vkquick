@@ -358,6 +358,8 @@ class MentionCutter(Cutter):
             and page_type == PageType.GROUP
             or self._page_type is PageID
         ):
+            if page_type == PageType.GROUP:
+                return -page_id
             return page_id
 
         elif self._page_type is User and page_type == PageType.USER:
