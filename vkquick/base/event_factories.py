@@ -159,7 +159,7 @@ class BaseLongPoll(BaseEventFactory):
                 self._update_baked_request()
                 continue
 
-            except (aiohttp.ClientOSError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError):
+            except (RuntimeError, aiohttp.ClientOSError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError):
                 await self.refresh_session()
                 self._update_baked_request()
                 continue
