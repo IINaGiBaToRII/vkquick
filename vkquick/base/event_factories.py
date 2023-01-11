@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import contextlib
 import typing
 
 import aiohttp
@@ -43,41 +44,46 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         self._waiting_new_event_extra_task: typing.Optional[
             asyncio.Task
         ] = None
+        self._events_queue: asyncio.Queue[BaseEvent] = asyncio.Queue()
 
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
         ...
 
     async def listen(self) -> typing.AsyncGenerator[BaseEvent, None]:
-        events_queue: asyncio.Queue[BaseEvent] = asyncio.Queue()
         logger.debug("Run events listening")
         try:
-            self.add_event_callback(events_queue.put)
+            self.add_event_callback(self._events_queue.put)
             if not self._run:
                 self._run = True
                 asyncio.create_task(self.coroutine_run_polling())
             while True:
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
-                new_event_task = asyncio.create_task(events_queue.get())
+                new_event_task = asyncio.create_task(self._events_queue.get())
                 self._waiting_new_event_extra_task = new_event_task
                 try:
-                    yield await new_event_task
+                    a = await new_event_task
+                    if asyncio.iscoroutinefunction(a):
+                        await a()
+                    yield a
                 except asyncio.CancelledError:
+                    await self._events_queue.put(canceled_task)
                     return
-
         finally:
             logger.debug("End events listening")
-            self.remove_event_callback(events_queue.put)
+            self.remove_event_callback(self._events_queue.put)
 
     def add_event_callback(self, func: EventsCallback) -> EventsCallback:
         logger.debug("Add event callback: {func}", func=func)
-        self._new_event_callbacks.append(func)
+        if func not in self._new_event_callbacks:
+            self._new_event_callbacks.append(func)
         return func
 
     def remove_event_callback(self, func: EventsCallback) -> EventsCallback:
         logger.debug("Remove event callback: {func}", func=func)
-        self._new_event_callbacks.remove(func)
+        if func in self._new_event_callbacks:
+            self._new_event_callbacks.remove(func)
         return func
 
     async def coroutine_run_polling(self) -> None:
@@ -86,12 +92,15 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         )
         try:
             await self._coroutine_run_polling()
+        except StopAsyncIteration:
+            pass
         finally:
             logger.info(
                 "End {polling_type} polling",
                 polling_type=self.__class__.__name__,
             )
-        self._run = False
+            await self.api.close_session()
+            self._run = False
 
     async def _run_through_callbacks(self, event: BaseEvent) -> None:
         logger.debug(
@@ -166,7 +175,7 @@ class BaseLongPoll(BaseEventFactory):
 
             # Polling stopped
             except asyncio.CancelledError:
-                raise StopAsyncIteration()
+                return
             else:
                 async with response:
                     if "X-Next-Ts" in response.headers:
@@ -218,3 +227,6 @@ class BaseLongPoll(BaseEventFactory):
         self._baked_request.cancel()
         if self._waiting_new_event_extra_task is not None:
             self._waiting_new_event_extra_task.cancel()
+
+async def canceled_task():
+    raise asyncio.CancelledError()
