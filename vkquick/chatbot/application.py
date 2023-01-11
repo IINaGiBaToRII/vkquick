@@ -140,9 +140,8 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
             await self._call_startup(*bots)
             run_coroutines = [bot.run_polling() for bot in bots]
             await asyncio.gather(*run_coroutines)
+            await self._call_shutdown(*bots)
         finally:
-            if bots:
-                await self._call_shutdown(*bots)
             for bot in bots:
                 await bot.close_sessions()
 
