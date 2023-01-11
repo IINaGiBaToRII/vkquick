@@ -60,7 +60,12 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
             while True:
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
-                new_event_task = asyncio.create_task(self._events_queue.get())
+                if next == "get":
+                    new_event_task = asyncio.create_task(self._events_queue.get())
+                    next = "nowait"
+                elif next == "nowait":
+                    new_event_task = asyncio.create_task(self._events_queue.get_nowait())
+                    next = "get"
                 self._waiting_new_event_extra_task = new_event_task
                 try:
                     a = await new_event_task
@@ -70,6 +75,8 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 except asyncio.CancelledError:
                     await self._events_queue.put(canceled_task)
                     return
+                except asyncio.QueueEmpty:
+                    next = "get"
         finally:
             logger.debug("End events listening")
             self.remove_event_callback(self._events_queue.put)
