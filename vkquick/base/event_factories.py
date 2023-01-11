@@ -52,7 +52,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
 
     async def listen(self) -> typing.AsyncGenerator[BaseEvent, None]:
         logger.debug("Run events listening")
-        next = ""
+        next = "get"
         try:
             self.add_event_callback(self._events_queue.put)
             if not self._run:
