@@ -65,8 +65,11 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                     new_event_task = asyncio.create_task(self._events_queue.get())
                     next = "nowait"
                 elif next == "nowait":
-                    new_event_task = asyncio.create_task(self._events_queue.get_nowait())
-                    next = "get"
+                    try:
+                        new_event_task = self._events_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        next = "get"
+                        continue
                 self._waiting_new_event_extra_task = new_event_task
                 try:
                     a = await new_event_task
@@ -76,8 +79,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 except asyncio.CancelledError:
                     await self._events_queue.put(canceled_task)
                     return
-                except asyncio.QueueEmpty:
-                    next = "get"
+
         finally:
             logger.debug("End events listening")
             self.remove_event_callback(self._events_queue.put)
