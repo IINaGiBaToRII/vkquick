@@ -41,10 +41,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         SessionContainerMixin.__init__(
             self, requests_session=requests_session, json_parser=json_parser
         )
-        self._waiting_new_event_extra_task: typing.Optional[
-            asyncio.Task
-        ] = None
-        self._events_queue: asyncio.Queue[BaseEvent] = asyncio.Queue()
+        self._waiting_new_event_extra_tasks: typing.List[asyncio.Task] = []
 
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
@@ -52,48 +49,34 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
 
     async def listen(self) -> typing.AsyncGenerator[BaseEvent, None]:
         logger.debug("Run events listening")
-        next = "get"
+        events_queue = asyncio.Queue()
         try:
-            self.add_event_callback(self._events_queue.put)
+            self.add_event_callback(events_queue.put)
             if not self._run:
                 self._run = True
                 asyncio.create_task(self.coroutine_run_polling())
             while True:
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
-                if next == "get":
-                    new_event_task = asyncio.create_task(self._events_queue.get())
-                    next = "nowait"
-                elif next == "nowait":
-                    try:
-                        new_event_task = self._events_queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        next = "get"
-                        continue
-                self._waiting_new_event_extra_task = new_event_task
+                new_event_task = asyncio.create_task(events_queue.get())
+                self._waiting_new_event_extra_tasks.append(new_event_task)
                 try:
-                    a = await new_event_task
-                    if asyncio.iscoroutinefunction(a):
-                        await a()
-                    yield a
+                    yield await new_event_task
+                    self._waiting_new_event_extra_tasks.remove(new_event_task)
                 except asyncio.CancelledError:
-                    await self._events_queue.put(canceled_task)
                     return
-
         finally:
             logger.debug("End events listening")
             self.remove_event_callback(self._events_queue.put)
 
     def add_event_callback(self, func: EventsCallback) -> EventsCallback:
         logger.debug("Add event callback: {func}", func=func)
-        if func not in self._new_event_callbacks:
-            self._new_event_callbacks.append(func)
+        self._new_event_callbacks.append(func)
         return func
 
     def remove_event_callback(self, func: EventsCallback) -> EventsCallback:
         logger.debug("Remove event callback: {func}", func=func)
-        if func in self._new_event_callbacks:
-            self._new_event_callbacks.remove(func)
+        self._new_event_callbacks.remove(func)
         return func
 
     async def coroutine_run_polling(self) -> None:
@@ -235,8 +218,6 @@ class BaseLongPoll(BaseEventFactory):
 
     def stop(self) -> None:
         self._baked_request.cancel()
-        if self._waiting_new_event_extra_task is not None:
-            self._waiting_new_event_extra_task.cancel()
-
-async def canceled_task():
-    raise asyncio.CancelledError()
+        if self._waiting_new_event_extra_tasks:
+            for task in self._waiting_new_event_extra_tasks:
+                task.cancel()
