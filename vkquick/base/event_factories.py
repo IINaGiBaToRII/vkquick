@@ -41,7 +41,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         SessionContainerMixin.__init__(
             self, requests_session=requests_session, json_parser=json_parser
         )
-        self._waiting_new_event_extra_tasks: typing.Set[asyncio.Task] = set
+        self._waiting_new_event_extra_tasks: typing.List[asyncio.Task] = list()
 
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
@@ -59,7 +59,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
                 new_event_task = asyncio.create_task(events_queue.get())
-                self._waiting_new_event_extra_tasks.add(new_event_task)
+                self._waiting_new_event_extra_tasks.append(new_event_task)
                 try:
                     yield await new_event_task
                     self._waiting_new_event_extra_tasks.remove(new_event_task)
