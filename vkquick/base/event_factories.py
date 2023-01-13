@@ -41,7 +41,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         SessionContainerMixin.__init__(
             self, requests_session=requests_session, json_parser=json_parser
         )
-        self._waiting_new_event_extra_tasks: typing.List[asyncio.Task] = []
+        self._waiting_new_event_extra_tasks: typing.Set[asyncio.Task] = set
 
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
@@ -59,15 +59,16 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
                 new_event_task = asyncio.create_task(events_queue.get())
-                self._waiting_new_event_extra_tasks.append(new_event_task)
+                self._waiting_new_event_extra_tasks.add(new_event_task)
                 try:
                     yield await new_event_task
                     self._waiting_new_event_extra_tasks.remove(new_event_task)
                 except asyncio.CancelledError:
+                    self._waiting_new_event_extra_tasks.remove(new_event_task)
                     return
         finally:
             logger.debug("End events listening")
-            self.remove_event_callback(self._events_queue.put)
+            self.remove_event_callback(events_queue.put)
 
     def add_event_callback(self, func: EventsCallback) -> EventsCallback:
         logger.debug("Add event callback: {func}", func=func)
@@ -93,6 +94,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 polling_type=self.__class__.__name__,
             )
             await self.api.close_session()
+            self.stop()
             self._run = False
 
     async def _run_through_callbacks(self, event: BaseEvent) -> None:
@@ -217,7 +219,10 @@ class BaseLongPoll(BaseEventFactory):
         await BaseEventFactory.close_session(self)
 
     def stop(self) -> None:
-        self._baked_request.cancel()
-        if self._waiting_new_event_extra_tasks:
-            for task in self._waiting_new_event_extra_tasks:
-                task.cancel()
+        try:
+            self._baked_request.cancel()
+        finally:
+            if self._waiting_new_event_extra_tasks:
+                for task in list(self._waiting_new_event_extra_tasks):
+                    with contextlib.suppress(Exception):
+                        task.cancel()
