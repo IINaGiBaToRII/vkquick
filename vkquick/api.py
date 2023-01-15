@@ -22,7 +22,7 @@ from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
 from vkquick.captcha.captcha_handler import captcha_handler
 from vkquick.chatbot.utils import download_file
-from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage
+from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage, Video
 from vkquick.chatbot.wrappers.page import Group, Page, User
 from vkquick.exceptions import APIError
 from vkquick.json_parsers import json_parser_policy
@@ -549,6 +549,59 @@ class API(SessionContainerMixin):
                     for uploaded_photo in uploaded_photos
                 )
         return result_photos
+
+    async def upload_video(
+        self,
+        content: typing.Union[str, bytes],
+        name: typing.Optional[str] = None,
+        description: typing.Optional[str] = None,
+        is_private: typing.Optional[bool] = None,
+        wallpost: typing.Optional[bool] = None,
+        link: typing.Optional[str] = None,
+        group_id: typing.Optional[int] = None,
+        album_id: typing.Optional[int] = None,
+        privacy_view: typing.Optional[str] = None,
+        privacy_comment: typing.Optional[str] = None,
+        no_comments: typing.Optional[bool] = None,
+        repeat: typing.Optional[bool] = None,
+        compression: typing.Optional[bool] = None,
+    ):
+        """
+        Сохраняет видеозапись.
+        Arguments:
+            content: Содержимое файла видеозаписи.
+            name: Название видеофайла. Максимальное количество символов — 128.
+            description: Описание видеофайла. Максимальное количество символов — 5 000.
+            is_private: Информация о том, можно ли будет отправлять загруженное видео личным сообщением.
+            wallpost: Информация о том, опубликовать ли после сохранения запись с видео на стене.
+            link: URL источника видеозаписи. Используется для встраивания видео с внешних сайтов, например с YouTube.
+            group_id: Идентификатор сообщества, в список видео которого будет сохранён видеофайл. По умолчанию видео сохраняется в список видео текущего пользователя.
+            album_id: Идентификатор альбома, в который будет загружено видео.
+            privacy_view: Настройки приватности просмотра видео. Указывается в специальном формате. Параметр используется для видео, которые пользователь загрузил в свой профиль.
+            privacy_comment: Настройки приватности комментирования видео. Указывается в специальном формате. Параметр используется для видео, которые пользователь загрузил в свой профиль.
+            no_comments: Информация о том, нужно ли отключить возможность комментирования видео из сообществ.
+            repeat: Информация о том, нужно ли зациклить воспроизведения видео.
+            compression: Информация о том, нужно ли сжимать видеозапись.
+        Returns:
+            None
+        """
+        data_storage = aiohttp.FormData()
+        data_storage.add_field(
+            f"file",
+            content,
+            content_type="multipart/form-data",
+        )
+
+        uploading_info = await self.method("video.save")
+
+        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        fields = {
+            "attachment_type": "video",
+            "owner_id": response.pop("owner_id"),
+            "id": response.pop("video_id"),
+            "access_key": response.pop("video_hash")
+        }
+        return Video(fields)
 
     async def upload_doc_to_message(
         self,
