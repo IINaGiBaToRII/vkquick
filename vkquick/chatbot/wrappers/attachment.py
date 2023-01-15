@@ -119,7 +119,13 @@ class Photo(Attachment):
 class Document(Attachment):
     _name = "doc"
 
+    async def download(
+        self, *, session: typing.Optional[aiohttp.ClientSession] = None
+    ) -> bytes:
+        return await download_file(
+            self.fields["url"], session=session
+        )
+
 
 class VideoMessage(Attachment):
     _name = "video_message"
-
