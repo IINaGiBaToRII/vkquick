@@ -95,6 +95,9 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
             )
             await self.api.close_session()
             self._run = False
+            for task in list(self._waiting_new_event_extra_tasks):
+                with contextlib.suppress(Exception):
+                    task.cancel()
 
 
     async def _run_through_callbacks(self, event: BaseEvent) -> None:
@@ -221,4 +224,5 @@ class BaseLongPoll(BaseEventFactory):
     def stop(self) -> None:
         self._baked_request.cancel()
         for task in list(self._waiting_new_event_extra_tasks):
-            task.cancel()
+            with contextlib.suppress(Exception):
+                task.cancel()
