@@ -2,6 +2,97 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+1
+from __future__ import annotations
+2
+​
+3
+import dataclasses
+4
+import inspect
+5
+import re
+6
+import typing
+7
+import warnings
+8
+​
+9
+from loguru import logger
+10
+​
+11
+from vkquick.chatbot.base.cutter import (
+12
+    CommandTextArgument,
+13
+    InvalidArgumentConfig,
+14
+)
+15
+from vkquick.chatbot.base.filter import BaseFilter
+16
+from vkquick.chatbot.base.handler_container import HandlerMixin
+17
+from vkquick.chatbot.command.adapters import resolve_typing
+18
+from vkquick.chatbot.dependency import DependencyMixin, Depends
+19
+from vkquick.chatbot.exceptions import BadArgumentError, StopCurrentHandling
+20
+from vkquick.chatbot.storages import NewMessage
+21
+from vkquick.chatbot.utils import get_origin_typing
+22
+from vkquick.logger import format_mapping
+23
+​
+24
+Handler = typing.TypeVar(
+25
+    "Handler", bound=typing.Callable[..., typing.Awaitable]
+26
+)
+27
+​
+28
+​
+29
+@dataclasses.dataclass
+30
+class Command(HandlerMixin[Handler]):
+31
+    prefixes: typing.List[str] = dataclasses.field(default_factory=list)
+32
+    names: typing.List[str] = dataclasses.field(default_factory=list)
+33
+    routing_re_flags: typing.Union[re.RegexFlag, int] = re.IGNORECASE
+34
+    filter: typing.Optional[BaseFilter] = None
+35
+    description: typing.Optional[str] = None
+36
+    exclude_from_autodoc: bool = False
+37
+    invalid_argument_config: InvalidArgumentConfig = dataclasses.field(
+38
+        default_factory=InvalidArgumentConfig
+39
+    )
+40
+​
+41
+    def __post_init__(self):
+42
+        self._dependency_mixin = DependencyMixin()
+43
+​
+44
+        self.prefixes = list(self.prefixes)
+45
+        self.names = list(self.names)
+
 import re
 import typing
 import warnings
@@ -199,7 +290,9 @@ class Command(HandlerMixin[Handler]):
         # или аргументов не должно быть вовсе
         if self._text_arguments and summary_regex:
             summary_regex += r"(?:$|\s+)"
-
+        else:
+            summary_regex += r"$"
+            
         self._routing_regex = re.compile(
             summary_regex,
             flags=self.routing_re_flags,
