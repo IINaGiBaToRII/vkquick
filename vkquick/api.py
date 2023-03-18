@@ -555,7 +555,7 @@ class API(SessionContainerMixin):
         content: typing.Union[str, bytes],
         name: typing.Optional[str] = None,
         description: typing.Optional[str] = None,
-        is_private: typing.Optional[bool] = None,
+        is_private: typing.Optional[bool] = True,
         wallpost: typing.Optional[bool] = None,
         link: typing.Optional[str] = None,
         group_id: typing.Optional[int] = None,
@@ -592,7 +592,7 @@ class API(SessionContainerMixin):
             content_type="multipart/form-data",
         )
 
-        uploading_info = await self.method("video.save")
+        uploading_info = await self.method("video.save", is_private=is_private)
 
         response = await post(self, uploading_info["upload_url"], data=data_storage)
         fields = {
