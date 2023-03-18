@@ -20,6 +20,23 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 EventsCallback = typing.Callable[[BaseEvent], typing.Awaitable[None]]
 
 
+class WaitingEventTask:
+
+    def __init__(self, run: bool, tasks_storage: list, task):
+        self._run = run
+        self.tasks_storage = tasks_storage
+        self.task = task
+
+    def __enter__(self):
+        if self._run:
+            self.tasks_storage.append(self.task)
+            return self.task
+        else:
+            raise asyncio.CancelledError
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.tasks_storage.remove(self.task)
+
+
 class BaseEventFactory(SessionContainerMixin, abc.ABC):
 
     api: API
@@ -42,7 +59,6 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
             self, requests_session=requests_session, json_parser=json_parser
         )
         self._waiting_new_event_extra_tasks: typing.List[asyncio.Task] = list()
-
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
         ...
@@ -59,13 +75,11 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 # Таска ожидания события заносится в атрибут, чтобы остановка поулчения новых событий могла
                 # отменить таску по ожиданию добавления нового события в очередь
                 new_event_task = asyncio.create_task(events_queue.get())
-                self._waiting_new_event_extra_tasks.append(new_event_task)
-                try:
-                    yield await new_event_task
-                    self._waiting_new_event_extra_tasks.remove(new_event_task)
-                except asyncio.CancelledError:
-                    self._waiting_new_event_extra_tasks.remove(new_event_task)
-                    return
+                with WaitingEventTask(self._run, self._waiting_new_event_extra_tasks, new_event_task) as task:
+                    try:
+                        yield await task
+                    except asyncio.CancelledError:
+                        return
         finally:
             logger.debug("End events listening")
             self.remove_event_callback(events_queue.put)
@@ -86,16 +100,15 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         )
         try:
             await self._coroutine_run_polling()
-        except StopAsyncIteration:
-            pass
         finally:
             logger.info(
                 "End {polling_type} polling",
                 polling_type=self.__class__.__name__,
             )
-            await self.api.close_session()
             self._run = False
-            for task in list(self._waiting_new_event_extra_tasks):
+            asyncio.create_task(self.close_session())
+            asyncio.create_task(self.api.close_session())
+            for task in self._waiting_new_event_extra_tasks:
                 with contextlib.suppress(Exception):
                     task.cancel()
 
@@ -222,7 +235,9 @@ class BaseLongPoll(BaseEventFactory):
         await BaseEventFactory.close_session(self)
 
     def stop(self) -> None:
-        self._baked_request.cancel()
-        for task in list(self._waiting_new_event_extra_tasks):
+        asyncio.create_task(self.close_session())
+        with contextlib.suppress(Exception):
+            self._baked_request.cancel()
+        for task in self._waiting_new_event_extra_tasks:
             with contextlib.suppress(Exception):
                 task.cancel()
