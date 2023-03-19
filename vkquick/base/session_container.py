@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import ssl
 import typing
@@ -39,7 +40,7 @@ class SessionContainerMixin:
         self.__json_parser = json_parser or json_parser_policy
 
     @property
-    def requests_session(self) -> aiohttp.ClientSession:
+    async def requests_session(self) -> aiohttp.ClientSession:
         """
         Возвращает сессию, которую можно использовать для
         отправки запросов. Если сессия еще не была создана,
@@ -47,6 +48,13 @@ class SessionContainerMixin:
         этот проперти вне корутин.
         """
         if self.__session is None or self.__session.closed:
+            self.__session = self._init_aiohttp_session()
+
+        if not self.__session._loop.is_running():  # NOQA
+            # Hate `aiohttp` devs because it juggles event-loops and breaks already opened session
+            # So... when we detect a broken session need to fix it by re-creating it
+            # @asvetlov, if you read this, please no more juggle event-loop inside aiohttp, it breaks the brain.
+            await self.close_session()
             self.__session = self._init_aiohttp_session()
 
         return self.__session
