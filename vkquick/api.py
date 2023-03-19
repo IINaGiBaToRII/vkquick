@@ -370,7 +370,7 @@ class API(SessionContainerMixin):
         elif isinstance(photo, io.BytesIO):
             return photo.getvalue()
         elif isinstance(photo, str) and photo.startswith("http"):
-            return await download_file(photo, session=self.requests_session)
+            return await download_file(photo, session=await self.requests_session)
         elif isinstance(photo, (str, os.PathLike)):
             async with aiofiles.open(photo, "rb") as file:
                 return await file.read()
@@ -776,7 +776,7 @@ def _convert_method_name(name: str, /) -> str:
 async def post(self: API, url: str, *, data: typing.Any = None, parse_params: dict = None, **kwargs: typing.Any):
     while True:
         try:
-            async with self.requests_session.post(
+            async with (await self.requests_session).post(
                 url, data=data, **kwargs
             ) as response:
                 parse_params = {} if parse_params is None else parse_params
