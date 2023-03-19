@@ -170,18 +170,18 @@ class BaseLongPoll(BaseEventFactory):
         self._requests_query_params = typing.cast(
             dict, self._requests_query_params
         )
-        self._update_baked_request()
+        await self._update_baked_request()
 
         while True:
             try:
                 response = await self._baked_request
             except asyncio.TimeoutError:
-                self._update_baked_request()
+                await self._update_baked_request()
                 continue
 
             except (RuntimeError, aiohttp.ClientOSError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError):
                 await self.refresh_session()
-                self._update_baked_request()
+                await self._update_baked_request()
                 continue
 
             # Polling stopped
@@ -193,7 +193,7 @@ class BaseLongPoll(BaseEventFactory):
                         self._requests_query_params.update(
                             ts=response.headers["X-Next-Ts"]
                         )
-                        self._update_baked_request()
+                        await self._update_baked_request()
                         response = await self.parse_json_body(response)
                         if "updates" not in response:
                             await self._resolve_faileds(response)
@@ -221,11 +221,11 @@ class BaseLongPoll(BaseEventFactory):
         else:
             raise ValueError("Invalid longpoll version")
 
-        self._update_baked_request()
+        await self._update_baked_request()
 
-    def _update_baked_request(self) -> None:
+    async def _update_baked_request(self) -> None:
         self._server_url = typing.cast(str, self._server_url)
-        baked_request = self.requests_session.get(
+        baked_request = (await self.requests_session).get(
             self._server_url, params=self._requests_query_params
         )
         self._baked_request = asyncio.create_task(baked_request)
