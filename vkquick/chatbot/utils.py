@@ -4,7 +4,7 @@ import re
 import ssl
 import typing
 
-import aiohttp
+import reqsnaked
 
 from vkquick.json_parsers import json_parser_policy
 
@@ -31,39 +31,26 @@ def peer(chat_id: int = 0) -> int:
 async def download_file(
     url: str,
     *,
-    session: typing.Optional[aiohttp.ClientSession] = None,
+    session: typing.Optional[reqsnaked.Client] = None,
     **kwargs,
 ) -> bytes:
     """
     Скачивание файлов по их прямой ссылке
     """
-    used_session = session or aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(ssl=ssl.SSLContext()),
-        skip_auto_headers={"User-Agent"},
-        raise_for_status=True,
-        json_serialize=json_parser_policy.dumps,
-    )
-    async with used_session.get(url, **kwargs) as response:
-        downloaded_file = await response.read()
-
-    if session is None:
-        await used_session.close()
-
-    return downloaded_file
+    session = session or reqsnaked.Client()
+    response = await session.send(reqsnaked.Request("GET", url))
+    downloaded_file = await response.read()
+    
+    return downloaded_file.as_bytes()
 
 
 _registration_date_regex = re.compile('ya:created dc:date="(?P<date>.*?)"')
 
 
 async def get_user_registration_date(
-    id_: int, *, session: typing.Optional[aiohttp.ClientSession] = None
+    id_: int, *, session: typing.Optional[reqsnaked.Client] = None
 ) -> datetime.datetime:
-    request_session = session or aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(ssl=False),
-        skip_auto_headers={"User-Agent"},
-        raise_for_status=True,
-        json_serialize=json_parser_policy.dumps,
-    )
+    request_session = session or reqsnaked.Client()
     async with request_session:
         async with request_session.get(
             "https://vk.com/foaf.php", params={"id": id_}

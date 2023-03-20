@@ -136,15 +136,11 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
             for token in tokens
         ]
         bots = await asyncio.gather(*bots_init_coroutines)
-        try:
-            await self._call_startup(*bots)
-            run_coroutines = [bot.run_polling() for bot in bots]
-            await asyncio.gather(*run_coroutines)
-            await self._call_shutdown(*bots)
-        finally:
-            for bot in bots:
-                await bot.close_sessions()
-
+        await self._call_startup(*bots)
+        run_coroutines = [bot.run_polling() for bot in bots]
+        await asyncio.gather(*run_coroutines)
+        await self._call_shutdown(*bots)
+        
     async def _call_startup(self, *bots: Bot) -> None:
         startup_coroutines = []
         for pkg in self.packages:
@@ -257,7 +253,6 @@ class Bot(typing.Generic[AppPayloadFieldTypevar, BotPayloadFieldTypevar]):
             asyncio.create_task(route_event_coroutine)
         else:
             await route_event_coroutine
-
         if new_event_storage.event.type in {
             "message_new",
             "message_reply",
@@ -286,7 +281,3 @@ class Bot(typing.Generic[AppPayloadFieldTypevar, BotPayloadFieldTypevar]):
                 asyncio.create_task(route_callback_button_pressing_coroutine)
             else:
                 await route_callback_button_pressing_coroutine
-
-    async def close_sessions(self):
-        await self.events_factory.close_session()
-        await self.api.close_session()

@@ -229,7 +229,7 @@ class NewMessage(
     async def download_photos(self) -> typing.List[bytes]:
         photos = await self.fetch_photos()
         download_coroutines = [
-            photo.download_max_size(session=await self.api.requests_session)
+            photo.download_max_size(session=self.api.requests_session)
             for photo in photos
         ]
         downloaded_photos = await asyncio.gather(*download_coroutines)

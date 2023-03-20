@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 
-import aiohttp
+import reqsnaked
 
 from vkquick.api import API, TokenOwner
 from vkquick.base.event_factories import BaseLongPoll, EventsCallback
@@ -23,7 +23,7 @@ class GroupLongPoll(BaseLongPoll):
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]
         ] = None,
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
+        requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
     ) -> None:
         super().__init__(
@@ -69,7 +69,7 @@ class UserLongPoll(BaseLongPoll):
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]
         ] = None,
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
+        requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
     ) -> None:
         super().__init__(

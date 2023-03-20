@@ -4,7 +4,7 @@ import abc
 import datetime
 import typing
 
-import aiohttp
+import reqsnaked
 
 from vkquick.chatbot.base.wrapper import Wrapper
 from vkquick.chatbot.utils import get_user_registration_date
@@ -189,7 +189,7 @@ class User(Page, typing.Generic[FieldsTypevar]):
         return extra_fields
 
     async def get_registration_date(
-        self, session: typing.Optional[aiohttp.ClientSession] = None
+        self, session: typing.Optional[reqsnaked.Client] = None
     ) -> datetime.datetime:
         return await get_user_registration_date(self.id, session=session)
 

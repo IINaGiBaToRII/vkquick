@@ -1,5 +1,5 @@
 import aiofiles
-import aiohttp
+import reqsnaked
 import numpy
 import onnxruntime
 import pathlib
@@ -30,13 +30,12 @@ def generate_file(extension: str, base: pathlib.Path = base_path) -> pathlib.Pat
 async def read_bytes_from_url(
         url: str,
         max_size: float = 209715200,
-        session: aiohttp.ClientSession = None
+        client: reqsnaked.Client = None
 ) -> bytes:
-    session = session or aiohttp.ClientSession()
-    async with session:
-        async with session.get(url) as response:
-            if float(response.headers.get("content-length", -1)) < max_size:  # type: ignore
-                return await response.read()
+    client = client or reqsnaked.Client()
+    response = await client.send(reqsnaked.Request("GET", url))
+    if float(response.headers.to_dict().get("content-length", -1)) < max_size:  # type: ignore
+        return (await response.read()).as_bytes()
 
 
 async def save_bytes(bytes_: bytes, extension: str) -> pathlib.Path:

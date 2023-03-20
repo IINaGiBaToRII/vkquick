@@ -6,6 +6,7 @@ import contextlib
 import typing
 
 import aiohttp
+import reqsnaked
 from loguru import logger
 
 from vkquick.base.event import BaseEvent
@@ -49,7 +50,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]
         ] = None,
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
+        requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
     ):
         self.api = api
@@ -106,8 +107,6 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
                 polling_type=self.__class__.__name__,
             )
             self._run = False
-            asyncio.create_task(self.close_session())
-            asyncio.create_task(self.api.close_session())
             for task in self._waiting_new_event_extra_tasks:
                 with contextlib.suppress(Exception):
                     task.cancel()
@@ -142,7 +141,7 @@ class BaseLongPoll(BaseEventFactory):
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]
         ] = None,
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
+        requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
     ):
         self._event_wrapper = event_wrapper
@@ -175,34 +174,24 @@ class BaseLongPoll(BaseEventFactory):
         while True:
             try:
                 response = await self._baked_request
-            except asyncio.TimeoutError:
-                await self._update_baked_request()
-                continue
-
-            except (RuntimeError, aiohttp.ClientOSError, aiohttp.ClientResponseError, aiohttp.ServerDisconnectedError):
-                await self.refresh_session()
-                await self._update_baked_request()
-                continue
-
             # Polling stopped
             except asyncio.CancelledError:
                 return
             else:
-                async with response:
-                    if "X-Next-Ts" in response.headers:
-                        self._requests_query_params.update(
-                            ts=response.headers["X-Next-Ts"]
-                        )
-                        await self._update_baked_request()
-                        response = await self.parse_json_body(response)
-                        if "updates" not in response:
-                            await self._resolve_faileds(response)
-                            continue
-                    else:
-                        response = await self.parse_json_body(response)
+                response: reqsnaked.Response
+                if ts := response.headers["x-next-ts"]:
+                    self._requests_query_params.update(
+                        ts=ts
+                    )
+                    await self._update_baked_request()
+                    response = await self.parse_json_body(response)
+                    if "updates" not in response:
                         await self._resolve_faileds(response)
                         continue
-
+                else:
+                    response = await self.parse_json_body(response)
+                    await self._resolve_faileds(response)
+                    continue
                 if not response["updates"]:
                     continue
 
@@ -225,17 +214,12 @@ class BaseLongPoll(BaseEventFactory):
 
     async def _update_baked_request(self) -> None:
         self._server_url = typing.cast(str, self._server_url)
-        baked_request = (await self.requests_session).get(
-            self._server_url, params=self._requests_query_params
+        baked_request = self.requests_session.send(
+            reqsnaked.Request("GET", url=self._server_url, query=self._requests_query_params)
         )
-        self._baked_request = asyncio.create_task(baked_request)
-
-    async def close_session(self) -> None:
-        await self.api.close_session()
-        await BaseEventFactory.close_session(self)
+        self._baked_request = asyncio.ensure_future(baked_request)
 
     def stop(self) -> None:
-        asyncio.create_task(self.close_session())
         with contextlib.suppress(Exception):
             self._baked_request.cancel()
         for task in self._waiting_new_event_extra_tasks:

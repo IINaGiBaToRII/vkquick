@@ -5,7 +5,7 @@ import contextlib
 import ssl
 import typing
 
-import aiohttp
+import reqsnaked
 
 from vkquick.json_parsers import BaseJSONParser, json_parser_policy
 
@@ -27,8 +27,8 @@ class SessionContainerMixin:
     def __init__(
         self,
         *,
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
-        json_parser: typing.Optional[BaseJSONParser] = None
+        requests_session: typing.Optional[reqsnaked.Client] = None,
+        json_parser: typing.Optional[BaseJSONParser] = None,
     ) -> None:
         """
         Arguments:
@@ -36,28 +36,8 @@ class SessionContainerMixin:
             json_parser: Кастомный парсер, имплементирующий методы
                 сериализации/десериализации JSON.
         """
-        self.__session = requests_session
+        self.requests_session = reqsnaked.Client()
         self.__json_parser = json_parser or json_parser_policy
-
-    @property
-    async def requests_session(self) -> aiohttp.ClientSession:
-        """
-        Возвращает сессию, которую можно использовать для
-        отправки запросов. Если сессия еще не была создана,
-        произойдет инициализация. Не рекомендуется использовать
-        этот проперти вне корутин.
-        """
-        if self.__session is None or self.__session.closed:
-            self.__session = self._init_aiohttp_session()
-
-        if not self.__session._loop.is_running():  # NOQA
-            # Hate `aiohttp` devs because it juggles event-loops and breaks already opened session
-            # So... when we detect a broken session need to fix it by re-creating it
-            # @asvetlov, if you read this, please no more juggle event-loop inside aiohttp, it breaks the brain.
-            await self.close_session()
-            self.__session = self._init_aiohttp_session()
-
-        return self.__session
 
     async def __aenter__(self) -> SessionContainerMixin:
         """
@@ -67,19 +47,11 @@ class SessionContainerMixin:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self.close_session()
+        pass
 
-    async def close_session(self) -> None:
-        """
-        Закрывает используемую `aiohttp` сессию.
-        Можно использовать асинхронный менеджер контекста
-        вместо этого метода.
-        """
-        if self.__session is not None:
-            await self.__session.close()
-
+    
     async def parse_json_body(
-        self, response: aiohttp.ClientResponse, **kwargs
+        self, response: reqsnaked.Response
     ) -> dict:
         """
         Используйте в классе вместо прямого использования `.json()`
@@ -94,25 +66,4 @@ class SessionContainerMixin:
         Returns:
             Словарь, полученный при декодировании ответа.
         """
-        return await response.json(loads=self.__json_parser.loads, **kwargs)
-
-    def _init_aiohttp_session(self) -> aiohttp.ClientSession:
-        """
-        Инициализирует `aiohttp`-сессию. Переопределяйте этот метод
-        в своем классе, чтобы установить другие настройки сессии по умолчанию.
-
-        Returns:
-            Новую `aiohttp`-сессию
-        """
-        return aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(ssl=ssl.SSLContext()),
-            skip_auto_headers={"User-Agent"},
-            raise_for_status=True,
-            json_serialize=self.__json_parser.dumps,
-        )
-
-    async def refresh_session(self) -> None:
-        if not self.__session.closed:
-            with contextlib.suppress(Exception):
-                await self.__session.close()
-        self.__session = self._init_aiohttp_session()
+        return (await response.json()).query()

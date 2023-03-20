@@ -12,9 +12,8 @@ import typing
 import urllib.parse
 
 import aiofiles
-import aiohttp
-import aiohttp.client_exceptions
 import cachetools
+import reqsnaked
 from loguru import logger
 
 from vkquick import error_codes
@@ -53,7 +52,7 @@ class API(SessionContainerMixin):
         token_owner: TokenOwner = TokenOwner.UNKNOWN,
         version: str = "5.135",
         requests_url: str = "https://api.vk.com/method/",
-        requests_session: typing.Optional[aiohttp.ClientSession] = None,
+        requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
         cache_table: typing.Optional[cachetools.Cache] = None,
         proxies: typing.Optional[typing.List[str]] = None,
@@ -202,7 +201,7 @@ class API(SessionContainerMixin):
         * Все элементы списков, кортежей и множеств проходят конвертацию рекурсивно и
             объединяются в строку через `,`
         * Все словари автоматически дампятся в JSON-строку установленным JSON-парсером
-        * Все True/False значения становятся 1 и 0 соответственно (требуется для aiohttp)
+        * Все True/False значения становятся 1 и 0 соответственно (требуется для reqsnaked)
         * Если переданный объект имплементирует класс `APISerializableMixin`,
             вызывается соответствующий метод класса для конвертации в желаемое
             значение
@@ -319,8 +318,6 @@ class API(SessionContainerMixin):
             error = response["error"].copy()
             exception_class = APIError[error["error_code"]][0]
             status_code = error.pop("error_code")
-            if status_code == 5:
-                await self.close_session()
             raise exception_class(
                 status_code=status_code,  # noqa
                 description=error.pop("error_msg"),  # noqa
@@ -352,14 +349,12 @@ class API(SessionContainerMixin):
             self._proxies.append(current_proxy)
         else:
             current_proxy = None
-
-        return await post(
-            self,
-            self._requests_url + method_name,
-            data=params,
-            parse_params=None,
-            proxy=current_proxy
+        request = reqsnaked.Request(
+            "POST", url=self._requests_url + method_name, form=params
         )
+        response = await self.requests_session.send(request)
+        return await self.parse_json_body(response)
+
 
     async def _fetch_photo_entity(self, photo: PhotoEntityTyping) -> bytes:
         """
@@ -396,21 +391,21 @@ class API(SessionContainerMixin):
         Returns:
             None
         """
-        data_storage = aiohttp.FormData()
-        data_storage.add_field(
-            f"file",
-            content,
-            content_type="multipart/form-data",
+        data_storage = reqsnaked.Multipart(
+            reqsnaked.Part(
+                "file", content,
+                mime="audio/mp3",
+                filename="file.mp3"
+            )
         )
 
         uploading_info = await self.method("audio.get_upload_server")
 
-        response = await post(
-            self,
-            uploading_info["upload_url"],
-            data=data_storage,
-            parse_params=dict(content_type=None)
+        request = reqsnaked.Request(
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
         )
+        response = await self.requests_session.send(request)
+        response = await self.parse_json_body(response)
         return await self.method(
             "audio.save",
             **response,
@@ -441,31 +436,31 @@ class API(SessionContainerMixin):
         result_photos = []
         # TODO: concurrency between uploading
         for loading_step in itertools.count(0):
-            data_storage = aiohttp.FormData()
-
             # За один раз можно загрузить только 5 фотографий,
             # поэтому необходимо разбить фотографии на части
+            parts = []
             start_step = loading_step * 5
             end_step = start_step + 5
             if len(photo_bytes) <= start_step and result_photos:
                 break
 
             for ind, photo in enumerate(photo_bytes[start_step:end_step]):
-                data_storage.add_field(
-                    f"file{ind}",
-                    photo,
-                    content_type="multipart/form-data",
-                    filename=f"a.png",  # Расширение не играет роли
+                parts.append(
+                    reqsnaked.Part(
+                        f"file{ind}", photo,
+                        mime="multipart/form-data",
+                        filename="a.png"
+                    )
                 )
+
             uploading_info = await self.method(
                 "photos.get_messages_upload_server", peer_id=peer_id
             )
-            response = await post(
-                self,
-                uploading_info["upload_url"],
-                data=data_storage,
-                parse_params=dict(content_type=None)
+            request = reqsnaked.Request(
+                "POST", url=uploading_info["upload_url"], multipart=reqsnaked.Multipart(*parts)
             )
+            response = await self.requests_session.send(request)
+            response = await self.parse_json_body(response)
             try:
                 uploaded_photos = await self.method(
                     "photos.save_messages_photo", **response
@@ -507,8 +502,7 @@ class API(SessionContainerMixin):
         result_photos = []
         # TODO: concurrency between uploading
         for loading_step in itertools.count(0):
-            data_storage = aiohttp.FormData()
-
+            parts = []
             # За один раз можно загрузить только 5 фотографий,
             # поэтому необходимо разбить фотографии на части
             start_step = loading_step * 5
@@ -517,21 +511,21 @@ class API(SessionContainerMixin):
                 break
 
             for ind, photo in enumerate(photo_bytes[start_step:end_step]):
-                data_storage.add_field(
-                    f"file{ind}",
-                    photo,
-                    content_type="multipart/form-data",
-                    filename=f"a.png",  # Расширение не играет роли
+                parts.append(
+                    reqsnaked.Part(
+                        f"file{ind}", photo,
+                        mime="multipart/form-data",
+                        filename="a.png"
+                    )
                 )
             uploading_info = await self.method(
                 "photos.get_wall_upload_server", group_id=group_id
             )
-            response = await post(
-                self,
-                uploading_info["upload_url"],
-                data=data_storage,
-                parse_params=dict(content_type=None)
+            request = reqsnaked.Request(
+                "POST", url=uploading_info["upload_url"], multipart=reqsnaked.Multipart(*parts)
             )
+            response = await self.requests_session.send(request)
+            response = await self.parse_json_body(response)
             try:
                 uploaded_photos = await self.method(
                     "photos.save_wall_photo", **response
@@ -585,16 +579,21 @@ class API(SessionContainerMixin):
         Returns:
             None
         """
-        data_storage = aiohttp.FormData()
-        data_storage.add_field(
-            f"file",
-            content,
-            content_type="multipart/form-data",
+        data_storage = reqsnaked.Multipart(
+            reqsnaked.Part(
+                "file", content,
+                mime="video/mp4",
+                filename="file.mp4"
+            )
         )
 
         uploading_info = await self.method("video.save", is_private=is_private)
 
-        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        request = reqsnaked.Request(
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
+        )
+        response = await self.requests_session.send(request)
+        response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video",
             "owner_id": response.pop("owner_id"),
@@ -631,12 +630,12 @@ class API(SessionContainerMixin):
         """
         if "." not in filename:
             filename = f"{filename}.txt"
-        data_storage = aiohttp.FormData()
-        data_storage.add_field(
-            f"file",
-            content,
-            content_type="multipart/form-data",
-            filename=filename,
+        data_storage = reqsnaked.Multipart(
+            reqsnaked.Part(
+                "file", content,
+                mime="multipart/form-data",
+                filename=filename
+            )
         )
 
         uploading_info = await self.method(
@@ -644,7 +643,11 @@ class API(SessionContainerMixin):
             peer_id=peer_id,
             type=type
         )
-        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        request = reqsnaked.Request(
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
+        )
+        response = await self.requests_session.send(request)
+        response = await self.parse_json_body(response)
 
         document = await self.method(
             "docs.save",
@@ -661,17 +664,22 @@ class API(SessionContainerMixin):
         content: typing.Union[str, bytes],
         shape_id: typing.Literal[1, 2, 3, 4, 5] = 1
     ) -> VideoMessage:
-        data_storage = aiohttp.FormData()
-        data_storage.add_field(
-            f"file",
-            content,
-            content_type="multipart/form-data",
+        data_storage = reqsnaked.Multipart(
+            reqsnaked.Part(
+                name="file", value=content,
+                mime="video/mp4",
+                filename="file.mp4"
+            )
         )
         uploading_info = await self.method(
             "video.getVideoMessageUploadInfo",
             shape_id=shape_id
         )
-        response = await post(self, uploading_info["upload_url"], data=data_storage)
+        request = reqsnaked.Request(
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
+        )
+        response = await self.requests_session.send(request)
+        response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video_message",
             "owner_id": response.pop("owner_id"),
@@ -708,7 +716,7 @@ def _convert_param_value(value, /):
     elif isinstance(value, dict):
         return json_parser_policy.dumps(value)
 
-    # Особенности `aiohttp`
+    # Особенности `reqsnaked`
     elif isinstance(value, bool):
         return int(value)
 
@@ -771,28 +779,6 @@ def _convert_method_name(name: str, /) -> str:
 
     """
     return re.sub(r"_(?P<let>[a-z])", _upper_zero_group, name)
-
-
-async def post(self: API, url: str, *, data: typing.Any = None, parse_params: dict = None, **kwargs: typing.Any):
-    while True:
-        try:
-            async with (await self.requests_session).post(
-                url, data=data, **kwargs
-            ) as response:
-                parse_params = {} if parse_params is None else parse_params
-                response = await self.parse_json_body(response, **parse_params)
-                return response
-        except aiohttp.ClientResponseError as error:
-            if error.status >= 500:
-                logger.opt(colors=True).warning(
-                    "Server error occured while calling VK method: {error_message}. Retrying in 10 seconds...",
-                    error_message=error.message
-                )
-                await asyncio.sleep(10)
-            else:
-                raise error
-        except aiohttp.ServerDisconnectedError:
-            await self.refresh_session()
 
 
 class CallMethod:
