@@ -49,7 +49,6 @@ class SessionContainerMixin:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         pass
 
-    
     async def parse_json_body(
         self, response: reqsnaked.Response
     ) -> dict:
