@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import enum
 import io
 import itertools
 import os
 import re
-import time
 import traceback
 import typing
 import urllib.parse
@@ -74,7 +74,7 @@ class API(SessionContainerMixin):
             ttl=7200, maxsize=2 ** 12
         )
         self.semaphore = ralipyard.Semaphore(
-            access_times=3,
+            access_times=3 if token_owner is TokenOwner.USER else 20,
             per_period=datetime.timedelta(seconds=1)
         )
         self._method_name = ""
