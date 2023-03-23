@@ -13,7 +13,6 @@ import urllib.parse
 
 import aiofiles
 import cachetools
-import ralipyard
 import reqsnaked
 from loguru import logger
 
@@ -46,6 +45,36 @@ class TokenOwner(enum.Enum):
     UNKNOWN = enum.auto()
 
 
+class Semaphore:
+
+    def __init__(self, access_times: int, per_period: datetime.timedelta):
+        self.access_times = access_times
+        self.per_period = per_period
+
+        self.boundary: datetime.datetime = datetime.datetime.now()
+        self.current_block_access = 0
+        self.benchmark_stamp = lambda: datetime.datetime.now()
+
+    def calc_delay(self) -> float:
+        stamp = self.benchmark_stamp()
+        if stamp >= self.boundary:
+            self.current_block_access += 1
+
+            if self.current_block_access == self.access_times:
+                self.boundary = stamp + self.per_period
+                self.current_block_access = 0
+            return 0
+
+        self.current_block_access += 1
+
+        delay = self.boundary - stamp
+        if self.current_block_access == self.access_times:
+            self.boundary += self.per_period
+            self.current_block_access = 0
+
+        return delay.total_seconds()
+
+
 class API(SessionContainerMixin):
     def __init__(
         self,
@@ -73,9 +102,9 @@ class API(SessionContainerMixin):
         self._cache_table = cache_table or cachetools.TTLCache(
             ttl=7200, maxsize=2 ** 12
         )
-        self.semaphore = ralipyard.Semaphore(
-            access_times=3 if token_owner is TokenOwner.USER else 20,
-            per_period=datetime.timedelta(seconds=1)
+        self.semaphore = Semaphore(
+            access_times=1,
+            per_period=datetime.timedelta(seconds=1 / 20 if token_owner is TokenOwner.GROUP else 1 / 3)
         )
         self._method_name = ""
         self._use_cache = False
@@ -334,11 +363,6 @@ class API(SessionContainerMixin):
         Returns:
             Сырой ответ от API
         """
-        if self._proxies is not None:
-            current_proxy = self._proxies.pop(0)
-            self._proxies.append(current_proxy)
-        else:
-            current_proxy = None
 
         request = reqsnaked.Request(
             "POST", url=self._requests_url + method_name, form=params
@@ -479,7 +503,7 @@ class API(SessionContainerMixin):
         Arguments:
             photos: Фотографии в виде ссылки/пути до файла/сырых байтов/
                 IO-хранилища/Path-like объекта
-            peer_id: ID группы, куда загружаются фотографии. Если
+            group_id: ID группы, куда загружаются фотографии. Если
                 не передавать, то фотографии загрузятся в скрытый альбом. Рекомендуется
                 исключительно для тестирования, т.к. такой альбом имеет лимиты
         Returns:
