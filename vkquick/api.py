@@ -13,6 +13,7 @@ import urllib.parse
 
 import aiofiles
 import cachetools
+import ralipyard
 import reqsnaked
 from loguru import logger
 
@@ -72,16 +73,16 @@ class API(SessionContainerMixin):
         self._cache_table = cache_table or cachetools.TTLCache(
             ttl=7200, maxsize=2 ** 12
         )
-
+        self.semaphore = ralipyard.Semaphore(
+            access_times=3,
+            per_period=datetime.timedelta(seconds=1)
+        )
         self._method_name = ""
-        self._last_request_timestamp = 0.0
         self._use_cache = False
         self._stable_request_params = {
             "access_token": self._token,
             "v": self._version,
         }
-
-        self._update_requests_delay()
 
     def use_cache(self) -> API:
         """
@@ -140,18 +141,7 @@ class API(SessionContainerMixin):
             self._owner_schema = Group(owner_schema[0])
             self._token_owner = TokenOwner.GROUP
 
-        self._update_requests_delay()
         return self._token_owner, self._owner_schema
-
-    def _update_requests_delay(self) -> None:
-        """
-        Устанавливает необходимую задержку в секундах между
-        исполняемыми запросами
-        """
-        if self._token_owner in {TokenOwner.USER, TokenOwner.UNKNOWN}:
-            self._requests_delay = 1 / 3
-        else:
-            self._requests_delay = 1 / 20
 
     def __getattr__(self, attribute: str) -> API:
         """
@@ -349,12 +339,13 @@ class API(SessionContainerMixin):
             self._proxies.append(current_proxy)
         else:
             current_proxy = None
+
         request = reqsnaked.Request(
             "POST", url=self._requests_url + method_name, form=params
         )
+        await asyncio.sleep(self.semaphore.calc_delay())
         response = await self.requests_session.send(request)
         return await self.parse_json_body(response)
-
 
     async def _fetch_photo_entity(self, photo: PhotoEntityTyping) -> bytes:
         """
@@ -657,7 +648,6 @@ class API(SessionContainerMixin):
             return_tags=return_tags,
         )
         return Document(document[type])
-
 
     async def upload_video_message(
         self,
