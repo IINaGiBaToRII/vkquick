@@ -29,7 +29,6 @@ classifiers = [
 python = "^3.8"
 pygments = "^2.6.1"
 huepy = "^1.2.1"
-ralipyard = "^0.1.0"
 reqsnaked = "^0.1.0b0"
 typing-extensions = "4.4.0"
 cachetools = "^4.1.1"
