@@ -5,7 +5,6 @@ import asyncio
 import contextlib
 import typing
 
-import aiohttp
 import reqsnaked
 from loguru import logger
 
