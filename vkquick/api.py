@@ -448,51 +448,49 @@ class API(SessionContainerMixin):
             self._fetch_photo_entity(photo) for photo in photos
         ]
         photo_bytes = await asyncio.gather(*photo_bytes_coroutines)
+        uploading_info = await self.method(
+            "photos.get_messages_upload_server", group_id=group_id
+        )
         result_photos = []
-        # TODO: concurrency between uploading
-        for loading_step in itertools.count(0):
-            # За один раз можно загрузить только 5 фотографий,
-            # поэтому необходимо разбить фотографии на части
-            parts = []
-            start_step = loading_step * 5
-            end_step = start_step + 5
-            if len(photo_bytes) <= start_step and result_photos:
-                break
-
-            for ind, photo in enumerate(photo_bytes[start_step:end_step]):
-                parts.append(
-                    reqsnaked.Part(
-                        f"file{ind}", photo,
-                        mime="multipart/form-data",
-                        filename="a.png"
-                    )
-                )
-
-            uploading_info = await self.method(
-                "photos.get_messages_upload_server", peer_id=peer_id
-            )
-            request = reqsnaked.Request(
-                "POST", url=uploading_info["upload_url"], multipart=reqsnaked.Multipart(*parts)
-            )
-            response = await self.requests_session.send(request)
-            response = await self.parse_json_body(response)
-            try:
-                uploaded_photos = await self.method(
-                    "photos.save_messages_photo", **response
-                )
-            except APIError[error_codes.CODE_1_UNKNOWN]:
-                traceback.print_exc()
-                print(
-                    "(Вк пока что не позволяет загружать "
-                    "фотографии в беседу сообщества, "
-                    "что и является причиной ошибки)"
-                )
-            else:
-                result_photos.extend(
-                    Photo(uploaded_photo)
-                    for uploaded_photo in uploaded_photos
-                )
+        upload_to_messages = [
+            self._upload_photo(
+                upload_url=uploading_info["upload_url"],
+                photo_bytes=chunk,
+                result_photos=result_photos,
+                destination="messages"
+            ) for chunk in divide_chunks(photo_bytes, 5)
+        ]
+        await asyncio.gather(*upload_to_messages)
         return result_photos
+
+    async def _upload_photo(self, upload_url: str, photo_bytes: list, result_photos: list, destination: str = "wall"):
+        parts = []
+        for ind, photo in enumerate(photo_bytes):
+            parts.append(
+                reqsnaked.Part(
+                    f"file{ind}", photo,
+                    mime="multipart/form-data",
+                    filename="a.png"
+                )
+            )
+
+        request = reqsnaked.Request(
+            "POST", url=upload_url, multipart=reqsnaked.Multipart(*parts)
+        )
+        response = await self.requests_session.send(request)
+        response = await self.parse_json_body(response)
+        if destination == "wall":
+            uploaded_photos = await self.method(
+                "photos.save_wall_photo", **response
+            )
+        else:
+            uploaded_photos = await self.method(
+                "photos.save_messages_photo", **response
+            )
+        result_photos.extend(
+            Photo(uploaded_photo)
+            for uploaded_photo in uploaded_photos
+        )
 
     async def upload_photos_to_wall(
         self, *photos: PhotoEntityTyping, group_id: int = 0
@@ -514,49 +512,18 @@ class API(SessionContainerMixin):
             self._fetch_photo_entity(photo) for photo in photos
         ]
         photo_bytes = await asyncio.gather(*photo_bytes_coroutines)
+        uploading_info = await self.method(
+            "photos.get_wall_upload_server", group_id=group_id
+        )
         result_photos = []
-        # TODO: concurrency between uploading
-        for loading_step in itertools.count(0):
-            parts = []
-            # За один раз можно загрузить только 5 фотографий,
-            # поэтому необходимо разбить фотографии на части
-            start_step = loading_step * 5
-            end_step = start_step + 5
-            if len(photo_bytes) <= start_step and result_photos:
-                break
-
-            for ind, photo in enumerate(photo_bytes[start_step:end_step]):
-                parts.append(
-                    reqsnaked.Part(
-                        f"file{ind}", photo,
-                        mime="multipart/form-data",
-                        filename="a.png"
-                    )
-                )
-            uploading_info = await self.method(
-                "photos.get_wall_upload_server", group_id=group_id
-            )
-            request = reqsnaked.Request(
-                "POST", url=uploading_info["upload_url"], multipart=reqsnaked.Multipart(*parts)
-            )
-            response = await self.requests_session.send(request)
-            response = await self.parse_json_body(response)
-            try:
-                uploaded_photos = await self.method(
-                    "photos.save_wall_photo", **response
-                )
-            except APIError[error_codes.CODE_1_UNKNOWN]:
-                traceback.print_exc()
-                print(
-                    "(Вк пока что не позволяет загружать "
-                    "фотографии в беседу сообщества, "
-                    "что и является причиной ошибки)"
-                )
-            else:
-                result_photos.extend(
-                    Photo(uploaded_photo)
-                    for uploaded_photo in uploaded_photos
-                )
+        upload_to_wall = [
+            self._upload_photo(
+                upload_url=uploading_info["upload_url"],
+                photo_bytes=chunk,
+                result_photos=result_photos
+            ) for chunk in divide_chunks(photo_bytes, 5)
+        ]
+        await asyncio.gather(*upload_to_wall)
         return result_photos
 
     async def upload_video(
@@ -705,6 +672,12 @@ class API(SessionContainerMixin):
     @property
     def token(self):
         return self._token
+
+
+def divide_chunks(l: list, size: int):
+    # looping till length l
+    for i in range(0, len(l), size):
+        yield l[i:i + size]
 
 
 def _convert_param_value(value, /):
