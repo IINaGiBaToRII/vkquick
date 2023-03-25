@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import datetime
 import functools
@@ -193,7 +194,7 @@ class Message(TruncatedMessage):
             if attachment["type"] == "audio_message"
         ]
         return audiomsgs
-    
+
     async def fetch_videos(self, api: API, attachments: typing.List[dict] = None) -> typing.List[Video]:
         """
         Возвращает только видеозаписи из всего,
@@ -250,7 +251,7 @@ class SentMessage:
         return SentMessage(self.api, sent_message)
 
     async def upload_photos(
-        self, *photos: PhotoEntityTyping
+            self, *photos: PhotoEntityTyping
     ) -> typing.List[Photo]:
         """
         Загружает фотографию для отправки в сообщение
@@ -268,13 +269,13 @@ class SentMessage:
         )
 
     async def upload_doc(
-        self,
-        content: typing.Union[str, bytes],
-        filename: str,
-        *,
-        tags: typing.Optional[str] = None,
-        return_tags: typing.Optional[bool] = None,
-        type: typing.Literal["doc", "audio_message", "graffiti"] = "doc",
+            self,
+            content: typing.Union[str, bytes],
+            filename: str,
+            *,
+            tags: typing.Optional[str] = None,
+            return_tags: typing.Optional[bool] = None,
+            type: typing.Literal["doc", "audio_message", "graffiti"] = "doc",
     ) -> Document:
         """
         Загружает документ для отправки в сообщение
@@ -301,11 +302,11 @@ class SentMessage:
         )
 
     async def delete(
-        self,
-        *,
-        spam: typing.Optional[bool] = None,
-        group_id: typing.Optional[int] = None,
-        delete_for_all: bool = True,
+            self,
+            *,
+            spam: typing.Optional[bool] = None,
+            group_id: typing.Optional[int] = None,
+            delete_for_all: bool = True,
     ) -> None:
         """
         Удаляет указанное сообщение (по умолчанию у всех)
@@ -335,18 +336,18 @@ class SentMessage:
         )
 
     async def edit(
-        self,
-        message: str,
-        /,
-        lat: typing.Optional[float] = None,
-        long: typing.Optional[float] = None,
-        attachment: typing.Optional[AttachmentsTyping] = None,
-        keep_forward_messages: bool = True,
-        keep_snippets: bool = True,
-        group_id: typing.Optional[int] = None,
-        keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
-        dont_parse_links: bool = True,
-        template: typing.Optional[typing.Union[str, Carousel]] = None,
+            self,
+            message: str,
+            /,
+            lat: typing.Optional[float] = None,
+            long: typing.Optional[float] = None,
+            attachment: typing.Optional[AttachmentsTyping] = None,
+            keep_forward_messages: bool = True,
+            keep_snippets: bool = True,
+            group_id: typing.Optional[int] = None,
+            keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
+            dont_parse_links: bool = True,
+            template: typing.Optional[typing.Union[str, Carousel]] = None,
     ) -> int:
         if self.truncated_message.id:
             routing = dict(message_id=self.truncated_message.id)
@@ -372,28 +373,51 @@ class SentMessage:
             **routing,
         )
 
+    async def clear_command_init(self):
+        from ...api import CallMethod
+
+        if self.truncated_message.peer_id == (await self.api.define_token_owner())[1].id:
+            delete_for_all = 0
+        else:
+            delete_for_all = 1
+
+        edit = CallMethod(
+            "messages.edit",
+            message_id=self.truncated_message.id,
+            peer_id=self.truncated_message.peer_id,
+            message="."
+        )
+
+        delete = CallMethod(
+            "messages.delete",
+            message_id=self.truncated_message.id,
+            delete_for_all=delete_for_all,
+            peer_id=self.truncated_message.peer_id
+        )
+        asyncio.create_task(self.api.execute(edit, delete))
+
     async def reply(
-        self,
-        message: typing.Optional[str] = None,
-        /,
-        *,
-        random_id: typing.Optional[int] = None,
-        lat: typing.Optional[float] = None,
-        long: typing.Optional[float] = None,
-        attachment: typing.Optional[AttachmentsTyping] = None,
-        sticker_id: typing.Optional[int] = None,
-        group_id: typing.Optional[int] = None,
-        keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
-        template: typing.Optional[typing.Union[str, Carousel]] = None,
-        payload: typing.Optional[str] = None,
-        dont_parse_links: typing.Optional[bool] = None,
-        disable_mentions: bool = True,
-        intent: typing.Optional[str] = None,
-        expire_ttl: typing.Optional[int] = None,
-        silent: typing.Optional[bool] = None,
-        subscribe_id: typing.Optional[int] = None,
-        content_source: typing.Optional[str] = None,
-        **kwargs,
+            self,
+            message: typing.Optional[str] = None,
+            /,
+            *,
+            random_id: typing.Optional[int] = None,
+            lat: typing.Optional[float] = None,
+            long: typing.Optional[float] = None,
+            attachment: typing.Optional[AttachmentsTyping] = None,
+            sticker_id: typing.Optional[int] = None,
+            group_id: typing.Optional[int] = None,
+            keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
+            template: typing.Optional[typing.Union[str, Carousel]] = None,
+            payload: typing.Optional[str] = None,
+            dont_parse_links: typing.Optional[bool] = None,
+            disable_mentions: bool = True,
+            intent: typing.Optional[str] = None,
+            expire_ttl: typing.Optional[int] = None,
+            silent: typing.Optional[bool] = None,
+            subscribe_id: typing.Optional[int] = None,
+            content_source: typing.Optional[str] = None,
+            **kwargs,
     ) -> SentMessage:
         params = dict(
             message=message,
@@ -429,26 +453,26 @@ class SentMessage:
         return await self._send_message(params)
 
     async def answer(
-        self,
-        message: typing.Optional[str] = None,
-        *,
-        random_id: typing.Optional[int] = None,
-        lat: typing.Optional[float] = None,
-        long: typing.Optional[float] = None,
-        attachment: typing.Optional[AttachmentsTyping] = None,
-        sticker_id: typing.Optional[int] = None,
-        group_id: typing.Optional[int] = None,
-        keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
-        payload: typing.Optional[str] = None,
-        dont_parse_links: typing.Optional[bool] = None,
-        disable_mentions: bool = True,
-        template: typing.Optional[typing.Union[str, Carousel]] = None,
-        intent: typing.Optional[str] = None,
-        expire_ttl: typing.Optional[int] = None,
-        silent: typing.Optional[bool] = None,
-        subscribe_id: typing.Optional[int] = None,
-        content_source: typing.Optional[str] = None,
-        **kwargs,
+            self,
+            message: typing.Optional[str] = None,
+            *,
+            random_id: typing.Optional[int] = None,
+            lat: typing.Optional[float] = None,
+            long: typing.Optional[float] = None,
+            attachment: typing.Optional[AttachmentsTyping] = None,
+            sticker_id: typing.Optional[int] = None,
+            group_id: typing.Optional[int] = None,
+            keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
+            payload: typing.Optional[str] = None,
+            dont_parse_links: typing.Optional[bool] = None,
+            disable_mentions: bool = True,
+            template: typing.Optional[typing.Union[str, Carousel]] = None,
+            intent: typing.Optional[str] = None,
+            expire_ttl: typing.Optional[int] = None,
+            silent: typing.Optional[bool] = None,
+            subscribe_id: typing.Optional[int] = None,
+            content_source: typing.Optional[str] = None,
+            **kwargs,
     ) -> SentMessage:
         params = dict(
             message=message,
@@ -474,26 +498,26 @@ class SentMessage:
         return await self._send_message(params)
 
     async def forward(
-        self,
-        message: typing.Optional[str] = None,
-        *,
-        random_id: typing.Optional[int] = None,
-        lat: typing.Optional[float] = None,
-        long: typing.Optional[float] = None,
-        attachment: typing.Optional[AttachmentsTyping] = None,
-        sticker_id: typing.Optional[int] = None,
-        group_id: typing.Optional[int] = None,
-        keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
-        payload: typing.Optional[str] = None,
-        dont_parse_links: typing.Optional[bool] = None,
-        disable_mentions: bool = True,
-        intent: typing.Optional[str] = None,
-        expire_ttl: typing.Optional[int] = None,
-        silent: typing.Optional[bool] = None,
-        subscribe_id: typing.Optional[int] = None,
-        template: typing.Optional[typing.Union[str, Carousel]] = None,
-        content_source: typing.Optional[str] = None,
-        **kwargs,
+            self,
+            message: typing.Optional[str] = None,
+            *,
+            random_id: typing.Optional[int] = None,
+            lat: typing.Optional[float] = None,
+            long: typing.Optional[float] = None,
+            attachment: typing.Optional[AttachmentsTyping] = None,
+            sticker_id: typing.Optional[int] = None,
+            group_id: typing.Optional[int] = None,
+            keyboard: typing.Optional[typing.Union[str, Keyboard]] = None,
+            payload: typing.Optional[str] = None,
+            dont_parse_links: typing.Optional[bool] = None,
+            disable_mentions: bool = True,
+            intent: typing.Optional[str] = None,
+            expire_ttl: typing.Optional[int] = None,
+            silent: typing.Optional[bool] = None,
+            subscribe_id: typing.Optional[int] = None,
+            template: typing.Optional[typing.Union[str, Carousel]] = None,
+            content_source: typing.Optional[str] = None,
+            **kwargs,
     ) -> SentMessage:
         params = dict(
             message=message,
