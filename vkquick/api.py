@@ -4,10 +4,8 @@ import asyncio
 import datetime
 import enum
 import io
-import itertools
 import os
 import re
-import traceback
 import typing
 import urllib.parse
 
@@ -16,7 +14,6 @@ import cachetools
 import reqsnaked
 from loguru import logger
 
-from vkquick import error_codes
 from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
 from vkquick.captcha.captcha_handler import captcha_handler
@@ -449,7 +446,7 @@ class API(SessionContainerMixin):
         ]
         photo_bytes = await asyncio.gather(*photo_bytes_coroutines)
         uploading_info = await self.method(
-            "photos.get_messages_upload_server", group_id=group_id
+            "photos.get_messages_upload_server", peer_id=peer_id
         )
         result_photos = []
         upload_to_messages = [

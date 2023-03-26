@@ -245,7 +245,7 @@ class NewMessage(
         if self.msg.from_id > 0 and typevar in {Page, User}:
             return await User.fetch_one(self.api, self.msg.from_id, fields=fields, name_case=name_case)
         elif self.msg.from_id < 0 and typevar in {Page, Group}:
-            return await Group.fetch_one(self.api, self.msg.from_id, fields=fields, name_case=name_case)
+            return await Group.fetch_one(self.api, self.msg.from_id, fields=fields)
         else:
             raise ValueError(
                 f"Can't make wrapper with typevar `{typevar}` and from_id `{self.msg.from_id}`"
