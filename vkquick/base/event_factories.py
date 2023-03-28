@@ -33,6 +33,7 @@ class WaitingEventTask:
             return self.task
         else:
             raise asyncio.CancelledError
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.tasks_storage.remove(self.task)
 
@@ -59,6 +60,7 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
             self, requests_session=requests_session, json_parser=json_parser
         )
         self._waiting_new_event_extra_tasks: typing.List[asyncio.Task] = list()
+
     @abc.abstractmethod
     async def _coroutine_run_polling(self):
         ...
@@ -109,7 +111,6 @@ class BaseEventFactory(SessionContainerMixin, abc.ABC):
             for task in self._waiting_new_event_extra_tasks:
                 with contextlib.suppress(Exception):
                     task.cancel()
-
 
     async def _run_through_callbacks(self, event: BaseEvent) -> None:
         logger.debug(
@@ -172,16 +173,13 @@ class BaseLongPoll(BaseEventFactory):
 
         while True:
             try:
-                response = await self._baked_request
+                response: reqsnaked.Response = await self._baked_request
             # Polling stopped
             except asyncio.CancelledError:
                 return
             else:
-                response: reqsnaked.Response
-                if ts := response.headers["x-next-ts"]:
-                    self._requests_query_params.update(
-                        ts=ts
-                    )
+                if response.headers["x-next-ts"]:
+                    self._requests_query_params.update(ts=int(response.headers["x-next-ts"]))
                     await self._update_baked_request()
                     response = await self.parse_json_body(response)
                     if "updates" not in response:
@@ -193,7 +191,6 @@ class BaseLongPoll(BaseEventFactory):
                     continue
                 if not response["updates"]:
                     continue
-
                 for update in response["updates"]:
                     event = self._event_wrapper(update)
                     asyncio.create_task(self._run_through_callbacks(event))
