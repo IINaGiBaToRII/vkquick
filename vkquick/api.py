@@ -18,7 +18,7 @@ from vkquick.base.api_serializable import APISerializableMixin
 from vkquick.base.session_container import SessionContainerMixin
 from vkquick.captcha.captcha_handler import captcha_handler
 from vkquick.chatbot.utils import download_file
-from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage, Video
+from vkquick.chatbot.wrappers.attachment import Document, Photo, VideoMessage, Video, Audio
 from vkquick.chatbot.wrappers.page import Group, Page, User
 from vkquick.exceptions import APIError
 from vkquick.json_parsers import json_parser_policy
@@ -418,12 +418,13 @@ class API(SessionContainerMixin):
         )
         response = await self.requests_session.send(request)
         response = await self.parse_json_body(response)
-        return await self.method(
+        fields = await self.method(
             "audio.save",
             **response,
             title=title,
             artist=artist,
         )
+        return Audio(fields)
 
     async def upload_photos_to_message(
         self, *photos: PhotoEntityTyping, peer_id: int = 0
