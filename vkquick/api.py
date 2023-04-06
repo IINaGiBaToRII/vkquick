@@ -393,7 +393,7 @@ class API(SessionContainerMixin):
         content: typing.Union[str, bytes],
         title: str = None,
         artist: str = None,
-    ):
+    ) -> Audio:
         """
         Сохраняет аудиозапись.
         Arguments:
