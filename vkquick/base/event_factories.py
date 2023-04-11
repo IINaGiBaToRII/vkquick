@@ -175,6 +175,9 @@ class BaseLongPoll(BaseEventFactory):
             try:
                 response: reqsnaked.Response = await self._baked_request
             # Polling stopped
+            except reqsnaked.RequestError:
+                await self._update_baked_request()
+                
             except asyncio.CancelledError:
                 return
             else:
