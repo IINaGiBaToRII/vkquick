@@ -1,10 +1,14 @@
+import asyncio
+import pathlib
+import time
+import uuid
+
+
 import aiofiles
 import reqsnaked
 import numpy
 import onnxruntime
-import pathlib
 import PIL.Image
-import uuid
 
 
 import vkquick as vq
@@ -75,7 +79,10 @@ captcha = {"count": 0}
 
 
 async def captcha_handler(url):
+    start_time = time.time()
     captcha_code = await asolve(url)
+    to_sleep = 1.5 - (time.time() - start_time)
+    await asyncio.sleep(to_sleep if to_sleep > 0 else 0.1)
     captcha["count"] += 1
     return captcha_code
 
