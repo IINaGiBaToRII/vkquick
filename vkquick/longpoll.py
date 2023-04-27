@@ -88,12 +88,14 @@ class UserLongPoll(BaseLongPoll):
             "messages.getLongPollServer",
             lp_version=self._version
         )
-        server_url = new_lp_settings.pop("server")
+        server_url = new_lp_settings["server"].parse()
         self._server_url = f"https://{server_url}"
         self._requests_query_params = dict(
             act="a_check",
             wait=self._wait,
             mode=self._mode,
             version=self._version,
-            **new_lp_settings,
+            ts=new_lp_settings["ts"].parse(),
+            key=new_lp_settings["key"].parse()
         )
+
