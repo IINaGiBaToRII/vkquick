@@ -1,52 +1,13 @@
 from __future__ import annotations
 
-import collections.abc
-import dataclasses
+import asyncio
+import contextlib
+import ssl
 import typing
 
 import reqsnaked
 
 from vkquick.json_parsers import BaseJSONParser, json_parser_policy
-
-
-@dataclasses.dataclass
-class RawJSON(collections.abc.Mapping):
-    lazy_json: typing.Any
-    path: list = dataclasses.field(default_factory=list)
-    base_path: str = None
-
-    def parse(self):
-        try:
-            result = self.lazy_json.query(*self.path)
-            if self.base_path is not None:
-                self.path = [self.base_path]
-            else:
-                self.path = []
-        except KeyError:
-            result = None
-
-        return result
-
-    def __contains__(self, item):
-        try:
-            self.lazy_json.query(*self.path, item)
-            if self.base_path is not None:
-                self.path = [self.base_path]
-            else:
-                self.path = []
-            return True
-        except KeyError:
-            return False
-
-    def __getitem__(self, item):
-        self.path.append(item)
-        return self
-
-    def __iter__(self):
-        return iter(self.lazy_json.query())
-
-    def __len__(self):
-        raise NotImplemented()
 
 
 class SessionContainerMixin:
@@ -90,7 +51,7 @@ class SessionContainerMixin:
 
     async def parse_json_body(
         self, response: reqsnaked.Response
-    ) -> RawJSON:
+    ) -> dict:
         """
         Используйте в классе вместо прямого использования `.json()`
         для получения JSON из body ответа. Этот метод использует
@@ -98,8 +59,10 @@ class SessionContainerMixin:
 
         Arguments:
             response: Ответ, пришедший от отправки запроса.
+            kwargs: Дополнительные поля, которые будут переданы
+                в `.json()` помимо JSON-десериализатора.
 
         Returns:
-            LazyJSON-объект.
+            Словарь, полученный при декодировании ответа.
         """
-        return RawJSON(await response.json())
+        return (await response.json()).query()

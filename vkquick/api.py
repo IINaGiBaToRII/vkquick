@@ -23,7 +23,7 @@ from vkquick.chatbot.wrappers.page import Group, Page, User
 from vkquick.exceptions import APIError
 from vkquick.json_parsers import json_parser_policy
 from vkquick.logger import format_mapping
-
+from vkquick.pretty_view import pretty_view
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from vkquick.base.json_parser import BaseJSONParser
@@ -105,7 +105,10 @@ class API(SessionContainerMixin):
         )
         self._method_name = ""
         self._use_cache = False
-        self._stable_request_params = {"v": self._version}
+        self._stable_request_params = {
+            "access_token": self._token,
+            "v": self._version,
+        }
 
     def use_cache(self) -> API:
         """
@@ -156,12 +159,14 @@ class API(SessionContainerMixin):
             return self._token_owner, self._owner_schema
         owner_schema = await self.use_cache().method("users.get")
         if owner_schema:
-            self._owner_schema = User(owner_schema[0].parse())
+            self._owner_schema = User(owner_schema[0])
             self._token_owner = TokenOwner.USER
         else:
+
             owner_schema = await self.use_cache().method("groups.get_by_id")
-            self._owner_schema = Group(owner_schema[0].parse())
+            self._owner_schema = Group(owner_schema[0])
             self._token_owner = TokenOwner.GROUP
+
         return self._token_owner, self._owner_schema
 
     def __getattr__(self, attribute: str) -> API:
@@ -320,13 +325,13 @@ class API(SessionContainerMixin):
             ),
             method_name=real_method_name,
         )
-        # logger.opt(lazy=True).debug(
-        #     "Response is: {response}", response=lambda: pretty_view(response)
-        # )
+        logger.opt(lazy=True).debug(
+            "Response is: {response}", response=lambda: pretty_view(response)
+        )
 
         # Обработка ошибки вызова запроса
         if "error" in response:
-            error = response["error"].parse().copy()
+            error = response["error"].copy()
             exception_class = APIError[error["error_code"]][0]
             status_code = error.pop("error_code")
             raise exception_class(
@@ -337,7 +342,6 @@ class API(SessionContainerMixin):
             )
         else:
             response = response["response"]
-            response.base_path = "response"
 
         # Если кэширование включено -- запрос добавится в таблицу
         if use_cache:
@@ -345,7 +349,7 @@ class API(SessionContainerMixin):
 
         return response
 
-    async def _send_api_request(self, method_name: str, params: dict):
+    async def _send_api_request(self, method_name: str, params: dict) -> dict:
         """
         Выполняет сам API запрос с готовыми параметрами и именем метода
 
@@ -358,7 +362,7 @@ class API(SessionContainerMixin):
         """
 
         request = reqsnaked.Request(
-            "POST", url=self._requests_url + method_name, form=params, bearer_auth=self._token
+            "POST", url=self._requests_url + method_name, form=params
         )
         await asyncio.sleep(self.semaphore.calc_delay())
         response = await self.requests_session.send(request)
@@ -417,8 +421,8 @@ class API(SessionContainerMixin):
         fields = await self.method(
             "audio.save",
             **response,
-            artist=artist,
             title=title,
+            artist=artist,
         )
         return Audio(fields)
 
@@ -448,7 +452,7 @@ class API(SessionContainerMixin):
         result_photos = []
         upload_to_messages = [
             self._upload_photo(
-                upload_url=uploading_info["upload_url"].parse(),
+                upload_url=uploading_info["upload_url"],
                 photo_bytes=chunk,
                 result_photos=result_photos,
                 destination="messages"
@@ -657,9 +661,9 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video_message",
-            "owner_id": response["owner_id"].parse(),
-            "id": response["video_id"].parse(),
-            "access_key": response["video_hash"].parse()
+            "owner_id": response.pop("owner_id"),
+            "id": response.pop("video_id"),
+            "access_key": response.pop("video_hash")
         }
         return VideoMessage(fields)
 

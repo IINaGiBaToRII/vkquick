@@ -192,10 +192,9 @@ class BaseLongPoll(BaseEventFactory):
                     response = await self.parse_json_body(response)
                     await self._resolve_faileds(response)
                     continue
-                updates = response["updates"].parse()
-                if not updates:
+                if not response["updates"]:
                     continue
-                for update in updates:
+                for update in response["updates"]:
                     event = self._event_wrapper(update)
                     asyncio.create_task(self._run_through_callbacks(event))
 
@@ -203,10 +202,9 @@ class BaseLongPoll(BaseEventFactory):
         self._requests_query_params = typing.cast(
             dict, self._requests_query_params
         )
-        failed = response["failed"].parse()
-        if failed == 1:
-            self._requests_query_params.update(ts=response["ts"].parse())
-        elif failed in (2, 3):
+        if response["failed"] == 1:
+            self._requests_query_params.update(ts=response["ts"])
+        elif response["failed"] in (2, 3):
             await self._setup()
         else:
             raise ValueError("Invalid longpoll version")

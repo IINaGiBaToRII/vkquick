@@ -29,6 +29,7 @@ AppPayloadFieldTypevar = typing.TypeVar("AppPayloadFieldTypevar")
 
 @dataclasses.dataclass
 class App(Package, typing.Generic[AppPayloadFieldTypevar]):
+
     packages: typing.List[Package] = dataclasses.field(default_factory=list)
     debug: bool = False
     # Autodoc preferences
@@ -74,7 +75,7 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
             await asyncio.gather(*routing_coroutines)
 
     async def route_callback_button_pressing(
-            self, ctx: CallbackButtonPressed
+        self, ctx: CallbackButtonPressed
     ):
         routing_coroutines = [
             package.handle_callback_button_pressing(ctx)
@@ -88,14 +89,14 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
             command.update_prefix(*self.prefixes)
 
     def run(
-            self,
-            *tokens: typing.Union[str, API],
-            bot_payload_factory: typing.Optional[
-                typing.Type[BotPayloadFieldTypevar]
-            ] = None,
-            build_autodoc: bool = True,
-            docs_directory: str = "autodocs",
-            docs_filename: str = "index.html"
+        self,
+        *tokens: typing.Union[str, API],
+        bot_payload_factory: typing.Optional[
+            typing.Type[BotPayloadFieldTypevar]
+        ] = None,
+        build_autodoc: bool = True,
+        docs_directory: str = "autodocs",
+        docs_filename: str = "index.html"
     ) -> None:
         asyncio.run(
             self.coroutine_run(
@@ -109,14 +110,14 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
         )
 
     async def coroutine_run(
-            self,
-            *tokens: typing.Union[str, API],
-            bot_payload_factory: typing.Optional[
-                typing.Type[BotPayloadFieldTypevar]
-            ] = None,
-            build_autodoc: bool = True,
-            docs_directory: str = "autodocs",
-            docs_filename: str = "index.html"
+        self,
+        *tokens: typing.Union[str, API],
+        bot_payload_factory: typing.Optional[
+            typing.Type[BotPayloadFieldTypevar]
+        ] = None,
+        build_autodoc: bool = True,
+        docs_directory: str = "autodocs",
+        docs_filename: str = "index.html"
     ) -> None:
         if build_autodoc:
             self.render_autodoc(
@@ -139,7 +140,7 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
         run_coroutines = [bot.run_polling() for bot in bots]
         await asyncio.gather(*run_coroutines)
         await self._call_shutdown(*bots)
-
+        
     async def _call_startup(self, *bots: Bot) -> None:
         startup_coroutines = []
         for pkg in self.packages:
@@ -159,7 +160,7 @@ class App(Package, typing.Generic[AppPayloadFieldTypevar]):
         await asyncio.gather(*shutdown_coroutines)
 
     def render_autodoc(
-            self, directory: str = "autodocs", filename: str = "index.html"
+        self, directory: str = "autodocs", filename: str = "index.html"
     ):
         autodoc_dir = pathlib.Path(__file__).parent.parent / "autodoc"
         env = jinja2.Environment(
@@ -209,13 +210,13 @@ class Bot(typing.Generic[AppPayloadFieldTypevar, BotPayloadFieldTypevar]):
 
     @classmethod
     async def via_token(
-            cls,
-            *,
-            token: typing.Union[str, API],
-            app: App,
-            payload_factory: typing.Optional[
-                typing.Type[BotPayloadFieldTypevar]
-            ] = None
+        cls,
+        *,
+        token: typing.Union[str, API],
+        app: App,
+        payload_factory: typing.Optional[
+            typing.Type[BotPayloadFieldTypevar]
+        ] = None
     ) -> Bot:
         if isinstance(token, API):
             api = token
@@ -245,7 +246,7 @@ class Bot(typing.Generic[AppPayloadFieldTypevar, BotPayloadFieldTypevar]):
 
     @logger.catch(exclude=StopStateHandling)
     async def handle_event(
-            self, new_event_storage: NewEvent, wrap_to_task: bool = True
+        self, new_event_storage: NewEvent, wrap_to_task: bool = True
     ):
         route_event_coroutine = self.app.route_event(new_event_storage)
         if wrap_to_task:

@@ -3,7 +3,6 @@
 
 .drafts/
 .venv/
-.env/
 env/
 env3.7/
 __pycache__/
