@@ -410,13 +410,13 @@ class API(SessionContainerMixin):
         uploading_info = await self.method("audio.get_upload_server")
 
         request = reqsnaked.Request(
-            "POST", url=uploading_info["upload_url"].parse(), multipart=data_storage
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
         )
         response = await self.requests_session.send(request)
         response = await self.parse_json_body(response)
         fields = await self.method(
             "audio.save",
-            **response.unpack(),
+            **response,
             artist=artist,
             title=title,
         )
@@ -475,11 +475,11 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         if destination == "wall":
             uploaded_photos = await self.method(
-                "photos.save_wall_photo", **response.unpack()
+                "photos.save_wall_photo", **response
             )
         else:
             uploaded_photos = await self.method(
-                "photos.save_messages_photo", **response.unpack()
+                "photos.save_messages_photo", **response
             )
         result_photos.extend(
             Photo(uploaded_photo)
@@ -512,7 +512,7 @@ class API(SessionContainerMixin):
         result_photos = []
         upload_to_wall = [
             self._upload_photo(
-                upload_url=uploading_info["upload_url"].parse(),
+                upload_url=uploading_info["upload_url"],
                 photo_bytes=chunk,
                 result_photos=result_photos
             ) for chunk in divide_chunks(photo_bytes, 5)
@@ -566,15 +566,15 @@ class API(SessionContainerMixin):
         uploading_info = await self.method("video.save", is_private=is_private)
 
         request = reqsnaked.Request(
-            "POST", url=uploading_info["upload_url"].parse(), multipart=data_storage
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
         )
         response = await self.requests_session.send(request)
         response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video",
-            "owner_id": response["owner_id"].parse(),
-            "id": response["video_id"].parse(),
-            "access_key": response["video_hash"].parse()
+            "owner_id": response.pop("owner_id"),
+            "id": response.pop("video_id"),
+            "access_key": response.pop("video_hash")
         }
         return Video(fields)
 
@@ -620,18 +620,19 @@ class API(SessionContainerMixin):
             type=type
         )
         request = reqsnaked.Request(
-            "POST", url=uploading_info["upload_url"].parse(), multipart=data_storage
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
         )
         response = await self.requests_session.send(request)
         response = await self.parse_json_body(response)
+
         document = await self.method(
             "docs.save",
-            **response.unpack(),
+            **response,
             title=filename,
             tags=tags,
             return_tags=return_tags,
         )
-        return Document(document[type].parse())
+        return Document(document[type])
 
     async def upload_video_message(
         self,
@@ -650,7 +651,7 @@ class API(SessionContainerMixin):
             shape_id=shape_id
         )
         request = reqsnaked.Request(
-            "POST", url=uploading_info["upload_url"].parse(), multipart=data_storage
+            "POST", url=uploading_info["upload_url"], multipart=data_storage
         )
         response = await self.requests_session.send(request)
         response = await self.parse_json_body(response)

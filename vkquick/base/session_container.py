@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections.abc
 import dataclasses
 import typing
 
@@ -9,7 +10,7 @@ from vkquick.json_parsers import BaseJSONParser, json_parser_policy
 
 
 @dataclasses.dataclass
-class RawJSON:
+class RawJSON(collections.abc.Mapping):
     lazy_json: typing.Any
     path: list = dataclasses.field(default_factory=list)
     base_path: str = None
@@ -41,12 +42,12 @@ class RawJSON:
         self.path.append(item)
         return self
 
-    def unpack(self):
-        return self.lazy_json.query()
+    def __iter__(self):
+        return iter(self.lazy_json.query())
 
-    def get(self, item):
-        self.path.append(item)
-        return self.parse()
+    def __len__(self):
+        raise NotImplemented()
+
 
 class SessionContainerMixin:
     """

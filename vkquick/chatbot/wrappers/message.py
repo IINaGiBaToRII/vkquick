@@ -40,7 +40,8 @@ class TruncatedMessage(Wrapper):
             )
         else:
             return None
-        self._fields = extended_message["items"][0].parse()
+
+        self._fields = extended_message["items"][0]
         self.fields["is_cropped"] = False
 
     @property
@@ -160,7 +161,7 @@ class Message(TruncatedMessage):
 
     @property
     def is_cropped(self) -> bool:
-        return self._is_cropped
+        return bool(self.fields.get("is_cropped"))
 
     async def fetch_attachments(self, api: API) -> list:
 
