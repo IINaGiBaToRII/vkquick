@@ -173,7 +173,7 @@ class BaseLongPoll(BaseEventFactory):
 
         while True:
             try:
-                response: reqsnaked.Response = await self._baked_request
+                response = await self._baked_request
             # Polling stopped
             except reqsnaked.RequestError:
                 await self._update_baked_request()
@@ -192,7 +192,7 @@ class BaseLongPoll(BaseEventFactory):
                     response = await self.parse_json_body(response)
                     await self._resolve_faileds(response)
                     continue
-                if not response["updates"]:
+                if not response.contains("updates"):
                     continue
                 for update in response["updates"]:
                     event = self._event_wrapper(update)
@@ -202,7 +202,6 @@ class BaseLongPoll(BaseEventFactory):
         self._requests_query_params = typing.cast(
             dict, self._requests_query_params
         )
-        print(response["failed"])
         if response["failed"] == 1:
             self._requests_query_params.update(ts=response["ts"])
         elif response["failed"] in (2, 3):

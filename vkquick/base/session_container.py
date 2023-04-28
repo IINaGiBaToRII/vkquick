@@ -10,14 +10,11 @@ from vkquick.json_parsers import BaseJSONParser, json_parser_policy
 
 @dataclasses.dataclass
 class RawJSON:
-    lazy_json: "reqsnaked.LazyJSON"
+    lazy_json: reqsnaked.LazyJSON
     base_path: list = dataclasses.field(default_factory=list)
 
-    def contains(self, *items):
-        try:
-            return self.query(*self.base_path, *items)
-        except KeyError:
-            return False
+    def contains(self, *items) -> bool:
+        return self.lazy_json.contains(*items)
 
     def query(self, *items):
         return self.lazy_json.query(*self.base_path, *items)

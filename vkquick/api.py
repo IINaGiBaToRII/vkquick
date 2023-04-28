@@ -329,11 +329,11 @@ class API(SessionContainerMixin):
         # )
 
         # Обработка ошибки вызова запроса
-        if error := response.contains("error"):
+        if response.contains("error"):
+            error = response.query("error")
             exception_class = APIError[error["error_code"]][0]
-            status_code = error.pop("error_code")
             raise exception_class(
-                status_code=status_code,  # noqa
+                status_code=error.pop("error_code"),  # noqa
                 description=error.pop("error_msg"),  # noqa
                 request_params=error.pop("request_params"),  # noqa
                 extra_fields=error,  # noqa
@@ -360,10 +360,14 @@ class API(SessionContainerMixin):
         """
 
         request = reqsnaked.Request(
-            "POST", url=self._requests_url + method_name, form=params
+            "POST", url=self._requests_url + method_name, form=params, bearer_auth=self._token
         )
         await asyncio.sleep(self.semaphore.calc_delay())
-        response = await self.requests_session.send(request)
+        try:
+            response = await self.requests_session.send(request)
+        except (reqsnaked.RequestError, reqsnaked.ConnectionError):
+            self.requests_session = reqsnaked.Client()
+            return await self._send_api_request(method_name, params)
         return await self.parse_json_body(response)
 
     async def _fetch_photo_entity(self, photo: PhotoEntityTyping) -> bytes:
