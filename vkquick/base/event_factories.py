@@ -185,14 +185,14 @@ class BaseLongPoll(BaseEventFactory):
                     self._requests_query_params.update(ts=int(response.headers["x-next-ts"]))
                     await self._update_baked_request()
                     response = await self.parse_json_body(response)
-                    if "updates" not in response:
+                    if not response.contains("updates"):
                         await self._resolve_faileds(response)
                         continue
                 else:
                     response = await self.parse_json_body(response)
                     await self._resolve_faileds(response)
                     continue
-                if not response.contains("updates"):
+                if not response["updates"]:
                     continue
                 for update in response["updates"]:
                     event = self._event_wrapper(update)
