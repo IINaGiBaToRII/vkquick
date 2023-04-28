@@ -42,6 +42,7 @@ class GroupLongPoll(BaseLongPoll):
             "groups.getLongPollServer",
             group_id=self._group_id
         )
+        new_lp_settings = new_lp_settings.query()
         self._server_url = new_lp_settings.pop("server")
         self._requests_query_params = dict(
             act="a_check", wait=self._wait, **new_lp_settings
@@ -88,6 +89,7 @@ class UserLongPoll(BaseLongPoll):
             "messages.getLongPollServer",
             lp_version=self._version
         )
+        new_lp_settings = new_lp_settings.query()
         server_url = new_lp_settings.pop("server")
         self._server_url = f"https://{server_url}"
         self._requests_query_params = dict(

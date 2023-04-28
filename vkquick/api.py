@@ -106,7 +106,6 @@ class API(SessionContainerMixin):
         self._method_name = ""
         self._use_cache = False
         self._stable_request_params = {
-            "access_token": self._token,
             "v": self._version,
         }
 
@@ -159,12 +158,12 @@ class API(SessionContainerMixin):
             return self._token_owner, self._owner_schema
         owner_schema = await self.use_cache().method("users.get")
         if owner_schema:
-            self._owner_schema = User(owner_schema[0])
+            self._owner_schema = User(owner_schema.query(0))
             self._token_owner = TokenOwner.USER
         else:
 
             owner_schema = await self.use_cache().method("groups.get_by_id")
-            self._owner_schema = Group(owner_schema[0])
+            self._owner_schema = Group(owner_schema.query(0))
             self._token_owner = TokenOwner.GROUP
 
         return self._token_owner, self._owner_schema
@@ -189,7 +188,7 @@ class API(SessionContainerMixin):
     async def __call__(
         self,
         **request_params,
-    ) -> typing.Any:
+    ):
         """
         Вызывает метод `method` после обращения к имени метода через `__getattr__`
 
@@ -325,13 +324,12 @@ class API(SessionContainerMixin):
             ),
             method_name=real_method_name,
         )
-        logger.opt(lazy=True).debug(
-            "Response is: {response}", response=lambda: pretty_view(response)
-        )
+        # logger.opt(lazy=True).debug(
+        #     "Response is: {response}", response=lambda: pretty_view(response)
+        # )
 
         # Обработка ошибки вызова запроса
-        if "error" in response:
-            error = response["error"].copy()
+        if error := response.contains("error"):
             exception_class = APIError[error["error_code"]][0]
             status_code = error.pop("error_code")
             raise exception_class(
@@ -341,7 +339,7 @@ class API(SessionContainerMixin):
                 extra_fields=error,  # noqa
             )
         else:
-            response = response["response"]
+            response.base_path = ["response"]
 
         # Если кэширование включено -- запрос добавится в таблицу
         if use_cache:
@@ -349,7 +347,7 @@ class API(SessionContainerMixin):
 
         return response
 
-    async def _send_api_request(self, method_name: str, params: dict) -> dict:
+    async def _send_api_request(self, method_name: str, params: dict):
         """
         Выполняет сам API запрос с готовыми параметрами и именем метода
 
@@ -420,7 +418,7 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         fields = await self.method(
             "audio.save",
-            **response,
+            **response.query(),
             title=title,
             artist=artist,
         )
@@ -479,11 +477,11 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         if destination == "wall":
             uploaded_photos = await self.method(
-                "photos.save_wall_photo", **response
+                "photos.save_wall_photo", **response.query()
             )
         else:
             uploaded_photos = await self.method(
-                "photos.save_messages_photo", **response
+                "photos.save_messages_photo", **response.query()
             )
         result_photos.extend(
             Photo(uploaded_photo)
@@ -576,9 +574,9 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video",
-            "owner_id": response.pop("owner_id"),
-            "id": response.pop("video_id"),
-            "access_key": response.pop("video_hash")
+            "owner_id": response["owner_id"],
+            "id": response["video_id"],
+            "access_key": response["video_hash"]
         }
         return Video(fields)
 
@@ -631,7 +629,7 @@ class API(SessionContainerMixin):
 
         document = await self.method(
             "docs.save",
-            **response,
+            **response.query(),
             title=filename,
             tags=tags,
             return_tags=return_tags,
@@ -661,9 +659,9 @@ class API(SessionContainerMixin):
         response = await self.parse_json_body(response)
         fields = {
             "attachment_type": "video_message",
-            "owner_id": response.pop("owner_id"),
-            "id": response.pop("video_id"),
-            "access_key": response.pop("video_hash")
+            "owner_id": response["owner_id"],
+            "id": response["video_id"],
+            "access_key": response["video_hash"]
         }
         return VideoMessage(fields)
 

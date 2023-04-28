@@ -1,13 +1,29 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import ssl
+import dataclasses
 import typing
 
 import reqsnaked
 
 from vkquick.json_parsers import BaseJSONParser, json_parser_policy
+
+
+@dataclasses.dataclass
+class RawJSON:
+    lazy_json: "reqsnaked.LazyJSON"
+    base_path: list = dataclasses.field(default_factory=list)
+
+    def contains(self, *items):
+        try:
+            return self.query(*self.base_path, *items)
+        except KeyError:
+            return False
+
+    def query(self, *items):
+        return self.lazy_json.query(*self.base_path, *items)
+
+    def __getitem__(self, item):
+        return self.query(item)
 
 
 class SessionContainerMixin:
@@ -50,8 +66,9 @@ class SessionContainerMixin:
         pass
 
     async def parse_json_body(
-        self, response: reqsnaked.Response
-    ) -> dict:
+        self,
+        response: reqsnaked.Response,
+    ) -> RawJSON:
         """
         Используйте в классе вместо прямого использования `.json()`
         для получения JSON из body ответа. Этот метод использует
@@ -59,10 +76,7 @@ class SessionContainerMixin:
 
         Arguments:
             response: Ответ, пришедший от отправки запроса.
-            kwargs: Дополнительные поля, которые будут переданы
-                в `.json()` помимо JSON-десериализатора.
-
         Returns:
             Словарь, полученный при декодировании ответа.
         """
-        return (await response.json()).query()
+        return RawJSON(await response.json())
