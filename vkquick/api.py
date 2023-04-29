@@ -157,13 +157,14 @@ class API(SessionContainerMixin):
         ):
             return self._token_owner, self._owner_schema
         owner_schema = await self.use_cache().method("users.get")
+        owner_schema = owner_schema.query()
         if owner_schema:
-            self._owner_schema = User(owner_schema.query(0))
+            self._owner_schema = User(owner_schema[0])
             self._token_owner = TokenOwner.USER
         else:
-
             owner_schema = await self.use_cache().method("groups.get_by_id")
-            self._owner_schema = Group(owner_schema.query(0))
+            owner_schema = owner_schema.query()
+            self._owner_schema = Group(owner_schema[0])
             self._token_owner = TokenOwner.GROUP
 
         return self._token_owner, self._owner_schema
