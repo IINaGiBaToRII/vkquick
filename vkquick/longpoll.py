@@ -19,7 +19,7 @@ class GroupLongPoll(BaseLongPoll):
         /,
         *,
         group_id: typing.Optional[int] = None,
-        wait: int = 25,
+        wait: int = 90,
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]
         ] = None,
@@ -65,7 +65,7 @@ class UserLongPoll(BaseLongPoll):
         /,
         *,
         version: int = 3,
-        wait: int = 15,
+        wait: int = 90,
         mode: int = 234,
         new_event_callbacks: typing.Optional[
             typing.List[EventsCallback]

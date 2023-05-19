@@ -169,21 +169,21 @@ class BaseLongPoll(BaseEventFactory):
         self._requests_query_params = typing.cast(
             dict, self._requests_query_params
         )
-        await self._update_baked_request()
+        self._update_baked_request()
 
         while True:
             try:
                 response = await self._baked_request
             # Polling stopped
-            except reqsnaked.RequestError:
-                await self._update_baked_request()
+            except (asyncio.TimeoutError, reqsnaked.RequestError):
+                self._update_baked_request()
 
             except asyncio.CancelledError:
                 return
             else:
-                if response.headers["x-next-ts"]:
+                if response.headers["x-next-ts"] and int(response.headers["x-next-ts"]):
                     self._requests_query_params.update(ts=int(response.headers["x-next-ts"]))
-                    await self._update_baked_request()
+                    self._update_baked_request()
                     response = await self.parse_json_body(response)
                     if not response.contains("updates"):
                         await self._resolve_faileds(response)
@@ -209,14 +209,14 @@ class BaseLongPoll(BaseEventFactory):
         else:
             raise ValueError("Invalid longpoll version")
 
-        await self._update_baked_request()
+        self._update_baked_request()
 
-    async def _update_baked_request(self) -> None:
+    def _update_baked_request(self) -> None:
         self._server_url = typing.cast(str, self._server_url)
         baked_request = self.requests_session.send(
             reqsnaked.Request("GET", url=self._server_url, query=self._requests_query_params)
         )
-        self._baked_request = asyncio.ensure_future(baked_request)
+        self._baked_request = asyncio.wait_for(baked_request, 90)
 
     def stop(self) -> None:
         with contextlib.suppress(Exception):
