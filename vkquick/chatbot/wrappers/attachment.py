@@ -17,7 +17,7 @@ class Attachment(Wrapper, APISerializableMixin):
     _name = None
 
     def represent_as_api_param(self) -> str:
-        if self.fields.contains("access_key"):
+        if "access_key" in self.fields:
             access_key = f"""_{self.fields["access_key"]}"""
         else:
             access_key = ""
