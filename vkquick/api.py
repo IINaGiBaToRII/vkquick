@@ -427,7 +427,7 @@ class API(SessionContainerMixin):
             title=title,
             artist=artist,
         )
-        return Audio(fields)
+        return Audio(fields.query())
 
     async def upload_photos_to_message(
         self, *photos: PhotoEntityTyping, peer_id: int = 0
