@@ -336,7 +336,7 @@ class API(SessionContainerMixin):
             raise exception_class(
                 status_code=error.pop("error_code"),  # noqa
                 description=error.pop("error_msg"),  # noqa
-                request_params=error.pop("request_params"),  # noqa
+                request_params=error.pop("request_params") if "request_params" in error else {},  # noqa
                 extra_fields=error,  # noqa
             )
         else:
@@ -363,7 +363,7 @@ class API(SessionContainerMixin):
         request = reqsnaked.Request(
             "POST", url=self._requests_url + method_name, form=params, bearer_auth=self._token
         )
-        await asyncio.sleep(self.semaphore.calc_delay())
+        # await asyncio.sleep(self.semaphore.calc_delay())
         try:
             response = await self.requests_session.send(request)
         except (reqsnaked.RequestError, reqsnaked.ConnectionError):
