@@ -79,9 +79,15 @@ captcha = {"count": 0}
 
 
 async def captcha_handler(url):
-    start_time = time.time()
-    captcha_code = await asolve(url)
-    to_sleep = 3 - (time.time() - start_time)
+    while True:
+        try:
+            start_time = time.time()
+            captcha_code = await asolve(url)
+            break
+        except reqsnaked.ConnectionError:
+            await asyncio.sleep(0.5)
+
+    to_sleep = 4 - (time.time() - start_time)
     await asyncio.sleep(to_sleep if to_sleep > 0 else 0.1)
     captcha["count"] += 1
     return captcha_code
