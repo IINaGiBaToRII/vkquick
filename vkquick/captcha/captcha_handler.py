@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import pathlib
+import random
+import string
 import time
 import uuid
 
@@ -20,6 +23,7 @@ captcha_session = onnxruntime.InferenceSession(str(base_path.with_name("captcha_
 ctc_session = onnxruntime.InferenceSession(str(base_path.with_name("ctc_model.onnx")))
 
 codemap = " 24578acdehkmnpqsuvxyz"
+logger = logging.getLogger()
 
 
 def generate_string(suffix: str = ""):
@@ -54,9 +58,21 @@ async def download_image(url: str) -> pathlib.Path:
     return await save_bytes(image_bytes, "png")
 
 
+def random_string():
+    return ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
+
+
 async def asolve(url: str):
-    file = await download_image(url)
-    img = PIL.Image.open(file).resize((128, 64)).convert("RGB")
+    for _ in range(15):
+        try:
+            file = await download_image(url)
+            img = PIL.Image.open(file).resize((128, 64)).convert("RGB")
+            break
+        except PIL.UnidentifiedImageError:
+            logger.error("PIL.UnidentifiedImageError")
+            await asyncio.sleep(2)
+    else:
+        return random_string()
 
     x = numpy.array(img).reshape(1, -1)
     x = numpy.expand_dims(x, axis=0)
