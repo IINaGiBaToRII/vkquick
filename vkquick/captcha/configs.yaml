@@ -1,0 +1,10 @@
+batch_size: 128
+height: 50
+learning_rate: 0.001
+max_text_length: 7
+model_path: Models/02_captcha_to_text/202307100113
+train_epochs: 100
+train_workers: 100
+vocab: "6\u043Cgan\u0436huqp2i\u0442\u0434\u04404byc\u0445\u0448w3\u04417\u043Aex59v.krd\u0435\
+  8s\u0443m\u0430\u0444z"
+width: 130

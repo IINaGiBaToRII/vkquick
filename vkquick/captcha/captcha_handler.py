@@ -1,111 +1,67 @@
 import asyncio
-import logging
 import pathlib
-import random
-import string
 import time
-import uuid
+import typing
 
-
-import aiofiles
+import cv2
+from mltu.configs import BaseModelConfigs
+from mltu.inferenceModel import OnnxInferenceModel
+from mltu.utils.text_utils import ctc_decoder, get_cer
+import numpy as np
 import reqsnaked
-import numpy
-import onnxruntime
-import PIL.Image
-
-
 import vkquick as vq
 
 
-base_path = pathlib.Path(__file__)
+class ImageToWordModel(OnnxInferenceModel):
+    def __init__(self, char_list: typing.Union[str, list], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.char_list = char_list
 
-captcha_session = onnxruntime.InferenceSession(str(base_path.with_name("captcha_model.onnx")))
-ctc_session = onnxruntime.InferenceSession(str(base_path.with_name("ctc_model.onnx")))
+    def predict(self, image: np.ndarray):
+        image = cv2.resize(image, self.input_shape[:2][::-1])
 
-codemap = " 24578acdehkmnpqsuvxyz"
-logger = logging.getLogger()
+        image_pred = np.expand_dims(image, axis=0).astype(np.float32)
 
+        preds = self.model.run(None, {self.input_name: image_pred})[0]
 
-def generate_string(suffix: str = ""):
-    return f"{uuid.uuid4().hex}{suffix}"
+        text = ctc_decoder(preds, self.char_list)[0]
 
-
-def generate_file(extension: str, base: pathlib.Path = base_path) -> pathlib.Path:
-    file_directory = base.with_name(generate_string(suffix=f".{extension}"))
-    return file_directory
-
-
-async def read_bytes_from_url(
-        url: str,
-        max_size: float = 209715200,
-        client: reqsnaked.Client = None
-) -> bytes:
-    client = client or reqsnaked.Client()
-    response = await client.send(reqsnaked.Request("GET", url))
-    if float(response.headers.to_dict().get("content-length", -1)) < max_size:  # type: ignore
-        return (await response.read()).as_bytes()
+        return text
 
 
-async def save_bytes(bytes_: bytes, extension: str) -> pathlib.Path:
-    directory = generate_file(extension)
-    async with aiofiles.open(directory, "wb") as f:
-        await f.write(bytes_)
-    return directory
+client = reqsnaked.Client(danger_accept_invalid_certs=True)
+configs = BaseModelConfigs.load(pathlib.Path(__file__).with_name("configs.yaml"))
+model = ImageToWordModel(model_path=configs.model_path, char_list=configs.vocab)
 
 
-async def download_image(url: str) -> pathlib.Path:
-    image_bytes = await read_bytes_from_url(url)
-    return await save_bytes(image_bytes, "png")
-
-
-def random_string():
-    return ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
-
-
-async def asolve(url: str):
-    for _ in range(15):
-        try:
-            file = await download_image(url)
-            img = PIL.Image.open(file).resize((128, 64)).convert("RGB")
-            break
-        except PIL.UnidentifiedImageError:
-            logger.error("PIL.UnidentifiedImageError")
-            await asyncio.sleep(2)
-    else:
-        return random_string()
-
-    x = numpy.array(img).reshape(1, -1)
-    x = numpy.expand_dims(x, axis=0)
-    x = x / numpy.float32(255.0)
-
-    out = captcha_session.run(
-        None, dict([(inp.name, x[n]) for n, inp in enumerate(captcha_session.get_inputs())])
+async def get_image_bytes(url, session: reqsnaked.Client):
+    response = await session.send(
+        reqsnaked.Request("GET", url)
     )
-    out = ctc_session.run(
-        None,
-        dict(
-            [(inp.name, numpy.float32(out[n])) for n, inp in enumerate(ctc_session.get_inputs())]
-        ),
-    )
-    file.unlink()
-    return "".join([codemap[c] for c in numpy.uint8(out[-1][out[0] > 0])])  # type: ignore
+    content = await response.read()
+    return content.as_bytes()
 
 
-captcha = {"count": 0}
+def solve(image_bytes: bytes):
+    numpyarray = np.asarray(bytearray(image_bytes), dtype=np.uint8)
+    picture = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+    return model.predict(picture)
 
 
-async def captcha_handler(url):
+async def captcha_handler(url: str):
+
     while True:
         try:
             start_time = time.time()
-            captcha_code = await asolve(url)
+            image_bytes = await get_image_bytes(url, client)
+            captcha_code = solve(image_bytes)
             break
         except reqsnaked.ConnectionError:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2)
 
     to_sleep = 4 - (time.time() - start_time)
     await asyncio.sleep(to_sleep if to_sleep > 0 else 0.1)
-    captcha["count"] += 1
+
     return captcha_code
 
 
