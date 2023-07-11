@@ -31,7 +31,7 @@ class ImageToWordModel(OnnxInferenceModel):
 
 client = reqsnaked.Client(danger_accept_invalid_certs=True)
 configs = BaseModelConfigs.load(pathlib.Path(__file__).with_name("configs.yaml"))
-model = ImageToWordModel(model_path=configs.model_path, char_list=configs.vocab)
+model = ImageToWordModel(model_path=pathlib.Path(__file__).with_name("model.onnx"), char_list=configs.vocab)
 
 
 async def get_image_bytes(url, session: reqsnaked.Client):
