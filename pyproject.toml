@@ -32,7 +32,7 @@ huepy = "^1.2.1"
 reqsnaked = "^0.1.0b0"
 opencv-python = "4.8.0.74"
 mltu = "1.0.12"
-typing-extensions = "4.4.0"
+typing-extensions = "*"
 cachetools = "^4.1.1"
 better-exceptions = "^0.3.3"
 
