@@ -14,7 +14,7 @@ class RawJSON:
     base_path: list = dataclasses.field(default_factory=list)
 
     def contains(self, *items) -> bool:
-        return self.lazy_json.contains(*items)
+        return self.lazy_json.contains(*self.base_path, *items)
 
     def query(self, *items):
         return self.lazy_json.query(*self.base_path, *items)
