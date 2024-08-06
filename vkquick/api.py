@@ -42,36 +42,6 @@ class TokenOwner(enum.Enum):
     UNKNOWN = enum.auto()
 
 
-class Semaphore:
-
-    def __init__(self, access_times: int, per_period: datetime.timedelta):
-        self.access_times = access_times
-        self.per_period = per_period
-
-        self.boundary: datetime.datetime = datetime.datetime.now()
-        self.current_block_access = 0
-        self.benchmark_stamp = lambda: datetime.datetime.now()
-
-    def calc_delay(self) -> float:
-        stamp = self.benchmark_stamp()
-        if stamp >= self.boundary:
-            self.current_block_access += 1
-
-            if self.current_block_access == self.access_times:
-                self.boundary = stamp + self.per_period
-                self.current_block_access = 0
-            return 0
-
-        self.current_block_access += 1
-
-        delay = self.boundary - stamp
-        if self.current_block_access == self.access_times:
-            self.boundary += self.per_period
-            self.current_block_access = 0
-
-        return delay.total_seconds()
-
-
 class API(SessionContainerMixin):
     def __init__(
         self,
@@ -98,10 +68,6 @@ class API(SessionContainerMixin):
         self._proxies = proxies
         self._cache_table = cache_table or cachetools.TTLCache(
             ttl=7200, maxsize=2 ** 12
-        )
-        self.semaphore = Semaphore(
-            access_times=1,
-            per_period=datetime.timedelta(seconds=1 / 20 if token_owner is TokenOwner.GROUP else 1 / 3)
         )
         self._method_name = ""
         self._use_cache = False
@@ -363,7 +329,6 @@ class API(SessionContainerMixin):
         request = reqsnaked.Request(
             "POST", url=self._requests_url + method_name, form=params, bearer_auth=self._token
         )
-        await asyncio.sleep(self.semaphore.calc_delay())
         try:
             response = await self.requests_session.send(request)
         except (reqsnaked.RequestError, reqsnaked.ConnectionError):
