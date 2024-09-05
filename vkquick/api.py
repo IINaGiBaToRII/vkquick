@@ -42,6 +42,36 @@ class TokenOwner(enum.Enum):
     UNKNOWN = enum.auto()
 
 
+class Semaphore:
+
+    def __init__(self, access_times: int, per_period: datetime.timedelta):
+        self.access_times = access_times
+        self.per_period = per_period
+
+        self.boundary: datetime.datetime = datetime.datetime.now()
+        self.current_block_access = 0
+        self.benchmark_stamp = lambda: datetime.datetime.now()
+
+    def calc_delay(self) -> float:
+        stamp = self.benchmark_stamp()
+        if stamp >= self.boundary:
+            self.current_block_access += 1
+
+            if self.current_block_access == self.access_times:
+                self.boundary = stamp + self.per_period
+                self.current_block_access = 0
+            return 0
+
+        self.current_block_access += 1
+
+        delay = self.boundary - stamp
+        if self.current_block_access == self.access_times:
+            self.boundary += self.per_period
+            self.current_block_access = 0
+
+        return delay.total_seconds()
+
+
 class API(SessionContainerMixin):
     def __init__(
         self,
@@ -68,6 +98,10 @@ class API(SessionContainerMixin):
         self._proxies = proxies
         self._cache_table = cache_table or cachetools.TTLCache(
             ttl=7200, maxsize=2 ** 12
+        )
+        self.semaphore = Semaphore(
+            access_times=1,
+            per_period=datetime.timedelta(seconds=1 / 20 if token_owner is TokenOwner.GROUP else 1 / 3)
         )
         self._method_name = ""
         self._use_cache = False
@@ -329,6 +363,7 @@ class API(SessionContainerMixin):
         request = reqsnaked.Request(
             "POST", url=self._requests_url + method_name, form=params, bearer_auth=self._token
         )
+        # await asyncio.sleep(self.semaphore.calc_delay())
         try:
             response = await self.requests_session.send(request)
         except (reqsnaked.RequestError, reqsnaked.ConnectionError):
@@ -417,19 +452,35 @@ class API(SessionContainerMixin):
         uploading_info = await self.method(
             "photos.get_messages_upload_server", peer_id=peer_id
         )
-        result_photos = []
-        upload_to_messages = [
+        photo_chunks = divide_chunks_enumerate(photo_bytes, 5)
+
+        coroutines = [
             self._upload_photo(
                 upload_url=uploading_info["upload_url"],
                 photo_bytes=chunk,
-                result_photos=result_photos,
+                indices=chunk_indices,
                 destination="messages"
-            ) for chunk in divide_chunks(photo_bytes, 5)
+            )
+            for chunk_indices, chunk in photo_chunks
         ]
-        await asyncio.gather(*upload_to_messages)
+
+        unordered_results = await asyncio.gather(*coroutines)
+
+        # Prepare a placeholder for results sorted by their indices
+        result_photos = [None] * len(photos)
+
+        for batch in unordered_results:
+            for photo, idx in batch:
+                result_photos[idx] = photo
+
         return result_photos
 
-    async def _upload_photo(self, upload_url: str, photo_bytes: list, result_photos: list, destination: str = "wall"):
+
+    def divide_chunks_enumerate(data, chunk_size):
+        for i in range(0, len(data), chunk_size):
+            yield list(range(i, min(i + chunk_size, len(data)))), data[i:i + chunk_size]
+
+    async def _upload_photo(self, upload_url: str, photo_bytes: list, indices: list, destination: str = "wall"):
         parts = []
         for ind, photo in enumerate(photo_bytes):
             parts.append(
@@ -453,10 +504,8 @@ class API(SessionContainerMixin):
             uploaded_photos = await self.method(
                 "photos.save_messages_photo", **response.query()
             )
-        result_photos.extend(
-            Photo(uploaded_photo)
-            for uploaded_photo in uploaded_photos
-        )
+
+        return list(zip((Photo(uploaded_photo) for uploaded_photo in uploaded_photos), indices))
 
     async def upload_photos_to_wall(
         self, *photos: PhotoEntityTyping, group_id: int = 0
@@ -481,15 +530,27 @@ class API(SessionContainerMixin):
         uploading_info = await self.method(
             "photos.get_wall_upload_server", group_id=group_id
         )
-        result_photos = []
-        upload_to_wall = [
+        photo_chunks = divide_chunks_enumerate(photo_bytes, 5)
+
+        coroutines = [
             self._upload_photo(
                 upload_url=uploading_info["upload_url"],
                 photo_bytes=chunk,
-                result_photos=result_photos
-            ) for chunk in divide_chunks(photo_bytes, 5)
+                indices=chunk_indices,
+                destination="wall"
+            )
+            for chunk_indices, chunk in photo_chunks
         ]
-        await asyncio.gather(*upload_to_wall)
+
+        unordered_results = await asyncio.gather(*coroutines)
+
+        # Prepare a placeholder for results sorted by their indices
+        result_photos = [None] * len(photos)
+
+        for batch in unordered_results:
+            for photo, idx in batch:
+                result_photos[idx] = photo
+
         return result_photos
 
     async def upload_video(
