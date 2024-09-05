@@ -452,7 +452,7 @@ class API(SessionContainerMixin):
         uploading_info = await self.method(
             "photos.get_messages_upload_server", peer_id=peer_id
         )
-        photo_chunks = divide_chunks_enumerate(photo_bytes, 5)
+        photo_chunks = self.divide_chunks_enumerate(photo_bytes, 5)
 
         coroutines = [
             self._upload_photo(
@@ -475,7 +475,7 @@ class API(SessionContainerMixin):
 
         return result_photos
 
-
+    @staticmethod
     def divide_chunks_enumerate(data, chunk_size):
         for i in range(0, len(data), chunk_size):
             yield list(range(i, min(i + chunk_size, len(data)))), data[i:i + chunk_size]
@@ -530,7 +530,7 @@ class API(SessionContainerMixin):
         uploading_info = await self.method(
             "photos.get_wall_upload_server", group_id=group_id
         )
-        photo_chunks = divide_chunks_enumerate(photo_bytes, 5)
+        photo_chunks = self.divide_chunks_enumerate(photo_bytes, 5)
 
         coroutines = [
             self._upload_photo(
