@@ -82,7 +82,6 @@ class API(SessionContainerMixin):
         requests_session: typing.Optional[reqsnaked.Client] = None,
         json_parser: typing.Optional[BaseJSONParser] = None,
         cache_table: typing.Optional[cachetools.Cache] = None,
-        proxies: typing.Optional[typing.List[str]] = None,
     ):
         SessionContainerMixin.__init__(
             self, requests_session=requests_session, json_parser=json_parser
@@ -95,7 +94,6 @@ class API(SessionContainerMixin):
         self._token_owner = token_owner
         self._owner_schema = None
         self._requests_url = requests_url
-        self._proxies = proxies
         self._cache_table = cache_table or cachetools.TTLCache(
             ttl=7200, maxsize=2 ** 12
         )
